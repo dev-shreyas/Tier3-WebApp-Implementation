@@ -48,7 +48,7 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t flaskapp:${{ steps.set-image-tag.outputs.image-tag }} .
+          docker build -t ${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }} .
 
       - name: Tag Docker Image
         run: |
