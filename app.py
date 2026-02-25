@@ -8,7 +8,7 @@ def get_db():
 
 @app.route("/")
 def home():
-    return "<h1>App Running</h1><p>Use /add or /data</p>"
+    return "<h1>Hello!!! App is Running</h1><p>Use /add or /data</p>"
 
 @app.route("/health")
 def health():
