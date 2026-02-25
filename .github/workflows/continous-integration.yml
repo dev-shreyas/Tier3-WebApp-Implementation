@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - "**"
       - "app/**"
       - "helm-charts/**"
       - ".github/workflows/continous-integration.yml"
