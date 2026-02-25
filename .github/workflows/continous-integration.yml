@@ -1,0 +1,59 @@
+name: Flask App CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "helm-charts/**"
+      - ".github/workflows/continous-integration.yml"
+      
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-southeast-2
+  EKS_CLUSTER_NAME: flaskapp-eks-cluster
+  ECR_REPOSITORY_NAME: flaskapp-dev-ecr
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image to ECR
+    runs-on: ubuntu-latest
+
+    outputs:
+      image-tag: ${{ steps.set-image-tag.outputs.image-tag }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::426449772112:role/github-ecr-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set Image Tag
+        id: set-image-tag
+        run: |
+          IMAGE_TAG=$(echo $GITHUB_RUN_ID | sha256sum | cut -c1-8)
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com
+
+      - name: Build Docker Image
+        run: |
+          docker build -t flaskapp:${{ steps.set-image-tag.outputs.image-tag }} ./app
+
+      - name: Tag Docker Image
+        run: |
+          docker tag ${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }} 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}
+
+      - name: Push Docker Image to ECR
+        run: |
+          docker push 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}    
