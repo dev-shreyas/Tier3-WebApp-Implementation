@@ -1,6 +1,7 @@
 name: Flask App CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -57,4 +58,7 @@ jobs:
 
       - name: Push Docker Image to ECR
         run: |
-          docker push 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}    
+          docker push 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}
+          
+          
+
