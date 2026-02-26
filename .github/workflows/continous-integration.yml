@@ -61,4 +61,36 @@ jobs:
           docker push 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}
           
           
+  deploy-to-eks:
+    needs: build-and-push
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    environment: dev
 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::426449772112:role/github-terraform-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+      
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy to EKS using Helm
+        run: |
+          helm upgrade --install my-flaskapp ./helm-charts/my-flaskapp \
+            --set image.repository=426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }} \
+            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --namespace s-${{ needs.build-and-push.outputs.image-tag }} --create-namespace
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/my-flaskapp -n s-${{ needs.build-and-push.outputs.image-tag }} --timeout=120s      
