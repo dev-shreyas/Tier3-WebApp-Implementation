@@ -7,12 +7,35 @@
 <body>
     <div class="container">
         <h1>Hello!!! App is Running 🚀</h1>
-        <p>Use /add or /data endpoints</p>
 
         <div class="buttons">
-            <a href="/add">Insert Data</a>
-            <a href="/data">View Data</a>
+            <button onclick="addData()">Insert Data</button>
+            <button onclick="loadData()">Load Data</button>
         </div>
+
+        <ul id="data-list"></ul>
     </div>
+
+<script>
+async function addData() {
+    await fetch("/add");
+    loadData();
+}
+
+async function loadData() {
+    const response = await fetch("/data");
+    const data = await response.json();
+
+    const list = document.getElementById("data-list");
+    list.innerHTML = "";
+
+    data.forEach(item => {
+        const li = document.createElement("li");
+        li.textContent = item[0];
+        list.appendChild(li);
+    });
+}
+</script>
+
 </body>
 </html>
