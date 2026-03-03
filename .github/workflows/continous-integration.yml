@@ -6,7 +6,6 @@ on:
     branches:
       - main
     paths:
-      - "**"
       - "app/**"
       - "helm-charts/**"
       - ".github/workflows/continous-integration.yml"
@@ -47,6 +46,17 @@ jobs:
       - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com
+
+      - name: Check if Image Exists in ECR
+        id: check-image
+        run: |
+          if aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY_NAME }} --image-ids imageTag=${{ steps.set-image-tag.outputs.image-tag }} > /dev/null 2>&1; then
+            echo "Image already exists in ECR. Skipping build and push."
+            echo "image-exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Image does not exist in ECR. Proceeding with build and push."
+            echo "image-exists=false" >> $GITHUB_OUTPUT
+          fi      
 
       - name: Build Docker Image
         run: |
@@ -89,7 +99,7 @@ jobs:
           helm upgrade --install my-flaskapp ./helm-charts/my-flaskapp \
             --set image.repository=426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }} \
             --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
-            --namespace s-${{ needs.build-and-push.outputs.image-tag }} --create-namespace
+            --namespace dev
 
       - name: Verify deployment
         run: |
