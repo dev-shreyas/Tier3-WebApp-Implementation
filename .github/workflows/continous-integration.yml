@@ -103,4 +103,4 @@ jobs:
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/my-flaskapp -n s-${{ needs.build-and-push.outputs.image-tag }} --timeout=120s      
+          kubectl rollout status deployment/my-flaskapp -n dev --timeout=120s      
