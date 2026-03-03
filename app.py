@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 import sqlite3
 
 app = Flask(__name__)
@@ -8,40 +8,7 @@ def get_db():
 
 @app.route("/")
 def home():
-    return """
-    <html>
-        <head>
-            <title>Flask App</title>
-            <style>
-                body {
-                    background: linear-gradient(to right, #1e3c72, #2a5298);
-                    color: white;
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    padding-top: 100px;
-                }
-                h1 {
-                    font-size: 50px;
-                }
-                p {
-                    font-size: 20px;
-                }
-                .box {
-                    background-color: rgba(0, 0, 0, 0.4);
-                    padding: 20px;
-                    border-radius: 10px;
-                    display: inline-block;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="box">
-                <h1>Hello!!! App is Running</h1>
-                <p>Use /add or /data</p>
-            </div>
-        </body>
-    </html>
-    """
+    return render_template("index.html")
 
 @app.route("/health")
 def health():
