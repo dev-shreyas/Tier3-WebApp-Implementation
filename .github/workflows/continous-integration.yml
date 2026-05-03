@@ -1,56 +1,126 @@
-name: Flask App CI
+name: Flask App CI (Build, Dockerize, Publish)
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - master
     paths:
       - "app/**"
       - "helm-charts/**"
       - ".github/workflows/continous-integration.yml"
-      
-permissions:
-  contents: read
-  id-token: write
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - "app/**"
+      - "helm-charts/**"
+      - ".github/workflows/continous-integration.yml"
 
 env:
-  AWS_REGION: ap-southeast-2
-  EKS_CLUSTER_NAME: flaskapp-eks-cluster
-  ECR_REPOSITORY_NAME: flaskapp-dev-ecr
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}      
+  APP_NAME: flaskapp
 
 jobs:
   build-and-push:
-    name: Build and Push Docker Image to ECR
+    name: Build . Dockerize . Publish
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || '' }}
+
+    permissions:
+      contents: write
+      id-token: write
 
     outputs:
-      image-tag: ${{ steps.set-image-tag.outputs.image-tag }}
+      build_tag: ${{ steps.vars.outputs.build_tag }}
+      ecr_image: ${{ steps.ecr-push.outputs.image }}
+      s3_artifact: ${{ steps.s3-upload.outputs.s3_path }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set build variables
+        id: vars
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BUILD_NUM="${GITHUB_RUN_NUMBER}"
+          BUILD_TAG="build-${SHORT_SHA}-${BUILD_NUM}"
+          ARTIFACT_NAME="${{ env.APP_NAME }}-${BUILD_TAG}.tar.gz"
+
+          echo "build_num=${BUILD_NUM}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "build_tag=${BUILD_TAG}" >> $GITHUB_OUTPUT
+          echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+
+          echo "### Build identifiers" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |"       >> $GITHUB_STEP_SUMMARY
+          echo "|-|-|"                 >> $GITHUB_STEP_SUMMARY
+          echo "| Build number | \`${BUILD_NUM}\` |"   >> $GITHUB_STEP_SUMMARY
+          echo "| Git SHA      | \`${SHORT_SHA}\` |"   >> $GITHUB_STEP_SUMMARY
+          echo "| Image tag    | \`${BUILD_TAG}\`  |"  >> $GITHUB_STEP_SUMMARY          
+
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+
+        run: |
+          pip install -r app/requirements.txt
+
+      - name: Run tests
+        run: |
+          cd app
+          python -m pytest tests/ -v --tb-short 2>/dev/null || (echo "No tests found, skipping..." && exit 1)
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            CHANGES=$(git log "${LAST_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+ 
+          if [ -z "$CHANGES" ]; then
+            CHANGES="- No new commits since last release"
+          fi
+ 
+          # Write to file so special chars survive GITHUB_OUTPUT
+          echo "$CHANGES" > /tmp/changelog.txt
+          echo "changelog_file=/tmp/changelog.txt" >> $GITHUB_OUTPUT
+          echo "last_tag=${LAST_TAG}"              >> $GITHUB_OUTPUT
+ 
+          echo ""
+          echo "=== Changelog ==="
+          cat /tmp/changelog.txt
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::426449772112:role/github-terraform-role
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} #arn:aws:iam::881953412430:role/github-terraform-role
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Set Image Tag
-        id: set-image-tag
-        run: |
-          IMAGE_TAG=$(echo $GITHUB_SHA | cut -c1-7)
-          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
+          
       - name: Login to Amazon ECR
-        run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com
+        if: github.ref == 'refs/heads/main'  
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Check if Image Exists in ECR
         id: check-image
         run: |
-          if aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY_NAME }} --image-ids imageTag=${{ steps.set-image-tag.outputs.image-tag }} > /dev/null 2>&1; then
+          if aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY }} --image-ids imageTag=${{ steps.set-image-tag.outputs.image-tag }} > /dev/null 2>&1; then
             echo "Image already exists in ECR. Skipping build and push."
             echo "image-exists=true" >> $GITHUB_OUTPUT
           else
@@ -59,48 +129,126 @@ jobs:
           fi      
 
       - name: Build Docker Image
+        id: docker-build
+        if: steps.check-image.outputs.image-exists == 'false'
         run: |
-          docker build -t ${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }} .
+          BUILD_TAG="${{ steps.vars.outputs.build_tag }}"
+          ECR_REGISTRY="${{ steps.ecr-login.outputs.ecr-registry }}"
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${BUILD_TAG}"
 
-      - name: Tag Docker Image
-        run: |
-          docker tag ${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }} 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}
-
+          docker build \
+            --build-arg BUILD_NUMBER="${{ steps.vars.outputs.build_num }}" \
+            --build-arg GIT_SHA="${{ steps.vars.outputs.short_sha }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "build.number=${{ steps.vars.outputs.build_num }}" \
+            -t "${IMAGE_URI}:${BUILD_TAG}" \
+            -t "${IMAGE_URI}:latest" \
+            -f app/Dockerfile \
+            ./app
+ 
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+        
       - name: Push Docker Image to ECR
+        if: github.ref == 'refs/heads/main'
+        id: ecr-push
         run: |
-          docker push 426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }}:${{ steps.set-image-tag.outputs.image-tag }}
-          
-          
-  deploy-to-eks:
-    needs: build-and-push
-    name: Deploy to EKS
-    runs-on: ubuntu-latest
-    environment: dev
+          BUILD_TAG="${{ steps.vars.outputs.build_tag }}"
+          IMAGE_URI="${{ steps.docker-build.outputs.image_uri }}"
+ 
+          docker push "${IMAGE_URI}:${BUILD_TAG}"
+          docker push "${IMAGE_URI}:latest"
+ 
+          FULL_IMAGE="${IMAGE_URI}:${BUILD_TAG}"
+          echo "image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "**ECR image:** \`${FULL_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Create release artifact package
+        id: package
+        run: |
+          ARTIFACT_NAME="${{ steps.vars.outputs.artifact_name }}"
+          ARTIFACT_DIR="/tmp/${ARTIFACT_NAME}"
+          mkdir -p "${ARTIFACT_DIR}"
+ 
+          # Copy application source
+          cp -r app/. "${ARTIFACT_DIR}/app/"
+ 
+          # Changelog
+          cp "${{ steps.changelog.outputs.changelog_file }}" "${ARTIFACT_DIR}/CHANGELOG.md"
+ 
+          # Build manifest (JSON)
+          cat > "${ARTIFACT_DIR}/manifest.json" <<EOF
+          {
+            "name":         "${{ env.APP_NAME }}",
+            "version":      "${{ steps.vars.outputs.build_tag }}",
+            "build_number": ${{ steps.vars.outputs.build_num }},
+            "git_sha":      "${{ github.sha }}",
+            "git_ref":      "${{ github.ref_name }}",
+            "built_at":     "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "ecr_image":    "${{ steps.docker-build.outputs.image_uri }}:${{ steps.vars.outputs.build_tag }}",
+            "repository":   "${{ github.repository }}"
+          }
+          EOF
+ 
+          # Create tarball
+          TARBALL="/tmp/${ARTIFACT_NAME}.tar.gz"
+          tar -czf "${TARBALL}" -C /tmp "${ARTIFACT_NAME}"
+ 
+          echo "tarball=${TARBALL}"           >> $GITHUB_OUTPUT
+          echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+          echo "Artifact size: $(du -sh ${TARBALL} | cut -f1)"
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Upload artifact to S3
+        if: github.ref == 'refs/heads/main'
+        id: s3-upload
+        run: |
+          BUILD_NUM="${{ steps.vars.outputs.build_num }}"
+          ARTIFACT_NAME="${{ steps.vars.outputs.artifact_name }}"
+          TARBALL="${{ steps.package.outputs.tarball }}"
+          S3_PREFIX="builds/${BUILD_NUM}"
+ 
+          # Upload tarball
+          aws s3 cp "${TARBALL}" \
+            "s3://${{ env.S3_BUCKET }}/${S3_PREFIX}/${ARTIFACT_NAME}.tar.gz" \
+            --metadata "build-number=${BUILD_NUM},git-sha=${{ github.sha }}"
+ 
+          # Upload manifest separately (easy machine-readable lookup)
+          aws s3 cp "/tmp/${ARTIFACT_NAME}/manifest.json" \
+            "s3://${{ env.S3_BUCKET }}/${S3_PREFIX}/manifest.json"
+ 
+          # Upload changelog
+          aws s3 cp "/tmp/changelog.txt" \
+            "s3://${{ env.S3_BUCKET }}/${S3_PREFIX}/CHANGELOG.md"
+ 
+          # Update a "latest" pointer file
+          echo "${S3_PREFIX}/${ARTIFACT_NAME}.tar.gz" | \
+            aws s3 cp - "s3://${{ env.S3_BUCKET }}/latest.txt"
+ 
+          S3_PATH="s3://${{ env.S3_BUCKET }}/${S3_PREFIX}/${ARTIFACT_NAME}.tar.gz"
+          echo "s3_path=${S3_PATH}" >> $GITHUB_OUTPUT
+          echo "**S3 artifact:** \`${S3_PATH}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build artifact to GitHub Actions
+        uses: actions/upload-artifact@v4
         with:
-          role-to-assume: arn:aws:iam::426449772112:role/github-terraform-role
-          aws-region: ${{ env.AWS_REGION }}
+          name: ${{ steps.vars.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.tarball }}
+          retention-days: 30
 
-      - name: Update kubeconfig for EKS
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.build_tag }}
+          name: "Release ${{ steps.vars.outputs.build_tag }}"
+          body_path: ${{ steps.changelog.outputs.changelog_file }}
+          files: ${{ steps.package.outputs.tarball }}
+          make_latest: true
+          
+      - name: Post job summary
         run: |
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
-      
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-
-      - name: Deploy to EKS using Helm
-        run: |
-          helm upgrade --install my-flaskapp ./helm-charts/my-flaskapp \
-            --set image.repository=426449772112.dkr.ecr.ap-southeast-2.amazonaws.com/${{ env.ECR_REPOSITORY_NAME }} \
-            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
-            --namespace dev
-
-      - name: Verify deployment
-        run: |
-          kubectl rollout status deployment/my-flaskapp -n dev --timeout=120s      
+          echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Changelog" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/changelog.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
