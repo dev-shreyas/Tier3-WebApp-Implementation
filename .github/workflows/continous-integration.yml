@@ -153,6 +153,28 @@ jobs:
             .
  
           echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Scan Docker Image (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.docker-build.outputs.image_uri }}:${{ steps.vars.outputs.build_tag }}
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@master  
+        with: 
+          image-ref: ${{ steps.docker-build.outputs.image_uri }}:${{ steps.vars.outputs.build_tag }}
+          format: 'cyclonedx'
+          output: 'sbom.json'
+
+      - name: Upload SBOM to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ steps.vars.outputs.build_tag }}
+          path: sbom.json
+          retention-days: 30
         
       - name: Push Docker Image to ECR
         id: ecr-push
