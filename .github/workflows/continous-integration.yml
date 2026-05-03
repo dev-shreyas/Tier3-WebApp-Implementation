@@ -114,14 +114,14 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           
       - name: Login to Amazon ECR
-        if: github.ref == 'refs/heads/main'  
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Check if Image Exists in ECR
+        if: github.ref == 'refs/heads/main'
         id: check-image
         run: |
-          if aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY }} --image-ids imageTag=${{ steps.set-image-tag.outputs.image-tag }} > /dev/null 2>&1; then
+          if aws ecr describe-images --repository-name ${{ env.ECR_REPOSITORY }} --image-ids imageTag=${{ steps.vars.outputs.build_tag }} > /dev/null 2>&1; then
             echo "Image already exists in ECR. Skipping build and push."
             echo "image-exists=true" >> $GITHUB_OUTPUT
           else
@@ -131,7 +131,7 @@ jobs:
 
       - name: Build Docker Image
         id: docker-build
-        if: steps.check-image.outputs.image-exists == 'false'
+        if: github.ref != 'refs/heads/main' || steps.check-image.outputs.image-exists == 'false'
         run: |
           BUILD_TAG="${{ steps.vars.outputs.build_tag }}"
           ECR_REGISTRY="${{ steps.ecr-login.outputs.ecr-registry }}"
@@ -145,8 +145,8 @@ jobs:
             --label "build.number=${{ steps.vars.outputs.build_num }}" \
             -t "${IMAGE_URI}:${BUILD_TAG}" \
             -t "${IMAGE_URI}:latest" \
-            -f app/Dockerfile \
-            ./app
+            -f Dockerfile \
+            .
  
           echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
         
