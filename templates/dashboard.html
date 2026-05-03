@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Task Manager Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-lightning-charge"></i> Task Manager Pro
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <form class="d-flex me-3" method="GET" action="{{ url_for('search') }}" style="width: 250px;">
+                            <input class="form-control form-control-sm" type="search" placeholder="Search tasks..." name="q" id="searchInput">
+                            <button class="btn btn-light btn-sm" type="submit"><i class="bi bi-search"></i></button>
+                        </form>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('analytics') }}">
+                            <i class="bi bi-graph-up"></i> Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('manage_categories') }}">
+                            <i class="bi bi-folder"></i> Categories
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.get('username', 'User') }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('add_item') }}" class="btn btn-primary btn-sm ms-2">
+                            <i class="bi bi-plus-circle"></i> Add Task
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container-fluid px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mt-3" role="alert">
+                        <i class="bi bi-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }}"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid px-4 py-4">
+        <div class="row mb-4">
+            <div class="col-lg-8">
+                <h1 class="h3 fw-bold mb-1">Welcome back, {{ session.get('username', 'User') }}! 👋</h1>
+                <p class="text-muted">Here's your task overview for today</p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="filter" id="filterAll" value="all" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="filterAll">All</label>
+                    
+                    <input type="radio" class="btn-check" name="filter" id="filterPending" value="pending">
+                    <label class="btn btn-outline-primary btn-sm" for="filterPending">Pending</label>
+                    
+                    <input type="radio" class="btn-check" name="filter" id="filterCompleted" value="completed">
+                    <label class="btn btn-outline-primary btn-sm" for="filterCompleted">Completed</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Row -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card stat-total">
+                    <div class="stat-icon"><i class="bi bi-list-check"></i></div>
+                    <div class="stat-content">
+                        <h3>{{ total }}</h3>
+                        <p>Total Tasks</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card stat-completed">
+                    <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
+                    <div class="stat-content">
+                        <h3>{{ completed }}</h3>
+                        <p>Completed</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card stat-pending">
+                    <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
+                    <div class="stat-content">
+                        <h3>{{ pending }}</h3>
+                        <p>Pending</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card stat-danger">
+                    <div class="stat-icon"><i class="bi bi-exclamation-circle"></i></div>
+                    <div class="stat-content">
+                        <h3>{{ overdue }}</h3>
+                        <p>Overdue</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Tasks Section -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-gradient text-white">
+                        <h5 class="mb-0"><i class="bi bi-list-task"></i> Your Tasks</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if items %}
+                            <div class="task-list">
+                                {% for item in items %}
+                                    <div class="task-item {% if item['status'] == 'completed' %}completed{% endif %}" data-status="{{ item['status'] }}">
+                                        <div class="task-header">
+                                            <div class="task-title-section">
+                                                <input type="checkbox" class="task-checkbox" {% if item['status'] == 'completed' %}checked{% endif %} data-task-id="{{ item['id'] }}">
+                                                <div>
+                                                    <h5 class="task-title">{{ item['name'] }}</h5>
+                                                    {% if item['description'] %}
+                                                        <p class="task-description">{{ item['description'][:100] }}{% if item['description']|length > 100 %}...{% endif %}</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="task-badges">
+                                                {% if item['category_name'] %}
+                                                    <span class="badge" style="background-color: {{ item['category_color'] }}; color: white;">
+                                                        {{ item['category_name'] }}
+                                                    </span>
+                                                {% endif %}
+                                                <span class="badge bg-{{ 'success' if item['priority'] == 'high' else 'warning' if item['priority'] == 'medium' else 'secondary' }}">
+                                                    {{ item['priority']|capitalize }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="task-footer">
+                                            <small class="text-muted">
+                                                {% if item['due_date'] %}
+                                                    <i class="bi bi-calendar"></i> {{ item['due_date'] }}
+                                                {% endif %}
+                                                {% if item['tags'] %}
+                                                    | <i class="bi bi-tags"></i> {{ item['tags'] }}
+                                                {% endif %}
+                                            </small>
+                                            <div class="task-actions">
+                                                <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <form method="POST" action="{{ url_for('delete_item', item_id=item['id']) }}" style="display: inline;">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this task?')" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="empty-state">
+                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                <h5>No tasks yet</h5>
+                                <p class="text-muted">Create your first task to get started</p>
+                                <a href="{{ url_for('add_item') }}" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle"></i> Create Task
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Priority Breakdown -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-gradient text-white">
+                        <h5 class="mb-0"><i class="bi bi-graph-up"></i> Priority Breakdown</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="priority-stat">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span><i class="bi bi-exclamation-circle text-danger"></i> High Priority</span>
+                                <strong>{{ priority_stats.high }}</strong>
+                            </div>
+                            <div class="progress mb-3" style="height: 8px;">
+                                <div class="progress-bar bg-danger" style="width: {{ (priority_stats.high / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span><i class="bi bi-exclamation-triangle text-warning"></i> Medium Priority</span>
+                                <strong>{{ priority_stats.medium }}</strong>
+                            </div>
+                            <div class="progress mb-3" style="height: 8px;">
+                                <div class="progress-bar bg-warning" style="width: {{ (priority_stats.medium / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span><i class="bi bi-info-circle text-info"></i> Low Priority</span>
+                                <strong>{{ priority_stats.low }}</strong>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-info" style="width: {{ (priority_stats.low / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-gradient text-white">
+                        <h5 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <a href="{{ url_for('add_item') }}" class="btn btn-primary w-100 mb-2">
+                            <i class="bi bi-plus-circle"></i> New Task
+                        </a>
+                        <a href="{{ url_for('manage_categories') }}" class="btn btn-outline-secondary w-100 mb-2">
+                            <i class="bi bi-folder"></i> Manage Categories
+                        </a>
+                        <a href="{{ url_for('analytics') }}" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-bar-chart"></i> View Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container-fluid">
+            <p class="mb-1">Task Manager Pro - Professional Task Management System</p>
+            <small>© 2026 All Rights Reserved</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

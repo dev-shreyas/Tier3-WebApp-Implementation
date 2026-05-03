@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results - Task Manager Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-lightning-charge"></i> Task Manager Pro
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <form class="d-flex me-3" method="GET" style="width: 250px;">
+                            <input class="form-control form-control-sm" type="search" placeholder="Search tasks..." name="q" id="searchInput" value="{{ query }}">
+                            <button class="btn btn-light btn-sm" type="submit"><i class="bi bi-search"></i></button>
+                        </form>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.get('username', 'User') }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid px-4 py-4">
+        <div class="row mb-4">
+            <div class="col-lg-12">
+                <h1 class="h3 fw-bold mb-1"><i class="bi bi-search"></i> Search Results</h1>
+                <p class="text-muted">Found {{ items|length }} result(s) for "{{ query }}"</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                {% if items %}
+                    <div class="task-list">
+                        {% for item in items %}
+                            <div class="task-item {% if item['status'] == 'completed' %}completed{% endif %}">
+                                <div class="task-header">
+                                    <div class="task-title-section">
+                                        <div>
+                                            <h5 class="task-title">{{ item['name'] }}</h5>
+                                            {% if item['description'] %}
+                                                <p class="task-description">{{ item['description'][:100] }}{% if item['description']|length > 100 %}...{% endif %}</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="task-badges">
+                                        {% if item['category_name'] %}
+                                            <span class="badge" style="background-color: {{ item['category_color'] }}; color: white;">
+                                                {{ item['category_name'] }}
+                                            </span>
+                                        {% endif %}
+                                        <span class="badge bg-{{ 'success' if item['priority'] == 'high' else 'warning' if item['priority'] == 'medium' else 'secondary' }}">
+                                            {{ item['priority']|capitalize }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="task-footer">
+                                    <small class="text-muted">
+                                        {% if item['due_date'] %}
+                                            <i class="bi bi-calendar"></i> {{ item['due_date'] }}
+                                        {% endif %}
+                                    </small>
+                                    <div class="task-actions">
+                                        <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <form method="POST" action="{{ url_for('delete_item', item_id=item['id']) }}" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this task?')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body text-center py-5">
+                            <div class="empty-icon"><i class="bi bi-search"></i></div>
+                            <h5 class="mt-3">No results found</h5>
+                            <p class="text-muted">Try adjusting your search query or <a href="{{ url_for('dashboard') }}">view all tasks</a></p>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-gradient text-white">
+                        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filters</h5>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="fw-bold mb-3">Categories</h6>
+                        {% for category in categories %}
+                            <a href="{{ url_for('search', q=category['name']) }}" class="badge me-2 mb-2" style="background-color: {{ category['color'] }}; color: white;">
+                                {{ category['name'] }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container-fluid">
+            <p class="mb-1">Task Manager Pro - Professional Task Management System</p>
+            <small>© 2026 All Rights Reserved</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

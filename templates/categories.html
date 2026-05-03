@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories - Task Manager Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-lightning-charge"></i> Task Manager Pro
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ session.get('username', 'User') }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container-fluid px-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mt-3" role="alert">
+                        <i class="bi bi-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }}"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid px-4 py-4">
+        <div class="row mb-4">
+            <div class="col-lg-8">
+                <h1 class="h3 fw-bold mb-1"><i class="bi bi-folder"></i> Manage Categories</h1>
+                <p class="text-muted">Organize your tasks with custom categories</p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                    <i class="bi bi-plus-circle"></i> Add Category
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            {% if categories %}
+                {% for category in categories %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center justify-content-between mb-3">
+                                    <div>
+                                        <i class="bi bi-{{ category['icon'] }}" style="font-size: 2rem; color: {{ category['color'] }};"></i>
+                                    </div>
+                                    <form method="POST" action="{{ url_for('delete_category', category_id=category['id']) }}" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this category?')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                <h5 class="card-title">{{ category['name'] }}</h5>
+                                <div class="color-preview" style="background-color: {{ category['color'] }}; height: 20px; border-radius: 4px; margin-top: 10px;"></div>
+                                <small class="text-muted d-block mt-2">
+                                    Icon: <code>{{ category['icon'] }}</code>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="empty-state text-center py-5">
+                        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                        <h5>No categories yet</h5>
+                        <p class="text-muted">Create your first category to organize tasks</p>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                            <i class="bi bi-plus-circle"></i> Create Category
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div class="modal fade" id="addCategoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-gradient text-white border-0">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Add New Category</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" class="modal-body">
+                    <div class="mb-4">
+                        <label for="name" class="form-label fw-bold">Category Name</label>
+                        <input type="text" class="form-control form-control-lg" id="name" name="name" placeholder="e.g., Work, Personal" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="color" class="form-label fw-bold">Color</label>
+                        <input type="color" class="form-control form-control-lg" id="color" name="color" value="#6366f1" style="height: 50px;">
+                    </div>
+                    <div class="mb-4">
+                        <label for="icon" class="form-label fw-bold">Icon</label>
+                        <input type="text" class="form-control" id="icon" name="icon" placeholder="e.g., briefcase, user, bag, heart" value="inbox">
+                        <small class="text-muted">Use Bootstrap icon names</small>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Create Category</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container-fluid">
+            <p class="mb-1">Task Manager Pro - Professional Task Management System</p>
+            <small>© 2026 All Rights Reserved</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
