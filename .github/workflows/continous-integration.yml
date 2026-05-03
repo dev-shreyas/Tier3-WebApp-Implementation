@@ -1,4 +1,4 @@
-name: Flask App CI (Build, Dockerize, Publish)
+name: Flask App CI (Build, Dockerize, Scan, Publish)
 
 on:
   workflow_dispatch:
