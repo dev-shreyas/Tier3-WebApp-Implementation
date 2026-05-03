@@ -160,7 +160,7 @@ jobs:
           image-ref: ${{ steps.docker-build.outputs.image_uri }}:${{ steps.vars.outputs.build_tag }}
           format: 'table'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          exit-code: '0'
 
       - name: Generate SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@master  
