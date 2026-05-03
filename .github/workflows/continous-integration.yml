@@ -155,7 +155,6 @@ jobs:
           echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
         
       - name: Push Docker Image to ECR
-        if: github.ref == 'refs/heads/main'
         id: ecr-push
         run: |
           BUILD_TAG="${{ steps.vars.outputs.build_tag }}"
@@ -210,7 +209,6 @@ jobs:
           echo "Artifact size: $(du -sh ${TARBALL} | cut -f1)"
 
       - name: Upload artifact to S3
-        if: github.ref == 'refs/heads/main'
         id: s3-upload
         run: |
           BUILD_NUM="${{ steps.vars.outputs.build_num }}"
@@ -247,7 +245,6 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.build_tag }}
