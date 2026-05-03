@@ -168,6 +168,7 @@ jobs:
           echo "**ECR image:** \`${FULL_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Create release artifact package
+        if: github.ref != 'refs/heads/main' || steps.check-image.outputs.image-exists == 'false'  
         id: package
         run: |
           ARTIFACT_NAME="${{ steps.vars.outputs.artifact_name }}"
