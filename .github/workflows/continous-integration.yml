@@ -176,7 +176,13 @@ jobs:
           mkdir -p "${ARTIFACT_DIR}"
  
           # Copy application source
-          cp -r app/. "${ARTIFACT_DIR}/app/"
+          cp -r \
+            app.py \
+            requirements.txt \
+            Dockerfile \
+            templates/ \
+            static/ \
+            "${ARTIFACT_DIR}/"
  
           # Changelog
           cp "${{ steps.changelog.outputs.changelog_file }}" "${ARTIFACT_DIR}/CHANGELOG.md"
