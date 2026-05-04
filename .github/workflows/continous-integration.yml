@@ -212,12 +212,17 @@ jobs:
           # Build manifest (JSON)
           cat > "${ARTIFACT_DIR}/manifest.json" <<EOF
           {
+            "artifact_name": "${{ steps.vars.outputs.artifact_name }}",
+            "artifact_file": "${{ steps.vars.outputs.artifact_name }}.tar.gz",
+            "s3_key": "builds/${{ steps.vars.outputs.build_num }}/${{ steps.vars.outputs.artifact_name }}.tar.gz",
+
             "name":         "${{ env.APP_NAME }}",
             "version":      "${{ steps.vars.outputs.build_tag }}",
-            "build_number": ${{ steps.vars.outputs.build_num }},
+            "build_number": "${{ steps.vars.outputs.build_num }}",
             "git_sha":      "${{ github.sha }}",
             "git_ref":      "${{ github.ref_name }}",
             "built_at":     "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+
             "ecr_image":    "${{ steps.docker-build.outputs.image_uri }}:${{ steps.vars.outputs.build_tag }}",
             "repository":   "${{ github.repository }}"
           }
