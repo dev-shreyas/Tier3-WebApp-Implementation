@@ -9,6 +9,23 @@
     --border-color: #e5e7eb;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --text-color: #1f2937;
+    --card-bg: #ffffff;
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --hover-bg: #f3f4f6;
+}
+
+/* Dark mode variables */
+html.dark-mode {
+    --light-bg: #1a1a1a;
+    --text-color: #f3f4f6;
+    --card-bg: #2d2d2d;
+    --input-bg: #3a3a3a;
+    --input-border: #4a4a4a;
+    --border-color: #3a3a3a;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    --hover-bg: #3a3a3a;
 }
 
 * {
@@ -20,8 +37,9 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--light-bg);
-    color: #1f2937;
+    color: var(--text-color);
     line-height: 1.6;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Navbar Styles */
@@ -149,6 +167,8 @@ body {
     border-radius: 16px;
     transition: all 0.3s ease;
     overflow: hidden;
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
 }
 
 .card:hover {
@@ -194,7 +214,7 @@ body {
     border-radius: 12px;
     padding: 1.5rem;
     transition: all 0.3s ease;
-    background: white;
+    background: var(--card-bg);
 }
 
 .task-item:hover {
@@ -240,15 +260,16 @@ body {
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 0;
-    color: #1f2937;
+    color: var(--text-color);
     word-break: break-word;
 }
 
 .task-description {
-    color: #6b7280;
+    color: var(--text-color);
     margin: 0.75rem 0 0 0;
     font-size: 0.95rem;
     line-height: 1.5;
+    opacity: 0.8;
 }
 
 .task-badges {
@@ -309,18 +330,20 @@ body {
 }
 
 .form-label {
-    color: #1f2937;
+    color: var(--text-color);
     margin-bottom: 0.5rem;
     font-size: 0.95rem;
 }
 
 .form-control,
 .form-select {
-    border: 2px solid var(--border-color);
+    border: 2px solid var(--input-border);
     border-radius: 10px;
     padding: 0.75rem 1rem;
     transition: all 0.3s ease;
     font-size: 1rem;
+    background-color: var(--input-bg);
+    color: var(--text-color);
 }
 
 .form-control:focus,
@@ -328,6 +351,8 @@ body {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     outline: none;
+    background-color: var(--input-bg);
+    color: var(--text-color);
 }
 
 .form-control-lg,
@@ -609,4 +634,46 @@ footer p {
     h5 {
         font-size: 1rem !important;
     }
+}
+
+/* Dark mode toggle button */
+.dark-mode-toggle {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.dark-mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.dark-mode-toggle i {
+    transition: transform 0.3s ease;
+}
+
+/* Dark mode alert styles */
+html.dark-mode .alert-success {
+    background: #064e3b;
+    color: #d1fae5;
+}
+
+html.dark-mode .alert-danger {
+    background: #7f1d1d;
+    color: #fee2e2;
+}
+
+/* Dark mode sidebar */
+html.dark-mode .list-group-item {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
 }

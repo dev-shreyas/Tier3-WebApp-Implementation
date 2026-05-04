@@ -1,5 +1,59 @@
+// Dark mode management
+const darkModeToggle = {
+    init() {
+        this.loadPreference();
+        this.setupToggleButton();
+    },
+    
+    loadPreference() {
+        const savedMode = localStorage.getItem('darkMode');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDarkMode = savedMode ? JSON.parse(savedMode) : prefersDark;
+        
+        if (isDarkMode) {
+            this.enable();
+        }
+    },
+    
+    setupToggleButton() {
+        const toggle = document.querySelector('.dark-mode-toggle');
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                const isDarkMode = document.documentElement.classList.contains('dark-mode');
+                isDarkMode ? this.disable() : this.enable();
+            });
+        }
+    },
+    
+    enable() {
+        document.documentElement.classList.add('dark-mode');
+        localStorage.setItem('darkMode', 'true');
+        this.updateToggleIcon();
+    },
+    
+    disable() {
+        document.documentElement.classList.remove('dark-mode');
+        localStorage.setItem('darkMode', 'false');
+        this.updateToggleIcon();
+    },
+    
+    updateToggleIcon() {
+        const toggle = document.querySelector('.dark-mode-toggle');
+        if (toggle) {
+            const icon = toggle.querySelector('i');
+            const isDarkMode = document.documentElement.classList.contains('dark-mode');
+            if (icon) {
+                icon.className = isDarkMode ? 'bi bi-brightness-high' : 'bi bi-moon';
+            }
+        }
+    }
+};
+
 // Auto-hide alerts after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize dark mode
+    darkModeToggle.init();
+    
     const alerts = document.querySelectorAll('.alert');
     alerts.forEach(alert => {
         setTimeout(() => {
