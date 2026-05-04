@@ -71,7 +71,8 @@ ingress:
     # alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}'
     #alb.ingress.kubernetes.io/ssl-redirect: '443'      
   hosts:
-    - path: /
+    - host: ""  # Leave empty for any hostname, or specify domain like: flaskapp.example.com
+      path: /
       pathType: Prefix
 
 resources: {}
