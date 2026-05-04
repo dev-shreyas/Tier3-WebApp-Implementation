@@ -104,19 +104,19 @@ jobs:
           echo "| Build | \`${BUILD_TAG}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Image | \`${IMAGE_TAG}\` |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Download artifact from S3
-        run: |
-          BUILD_NUM="${{ steps.resolve.outputs.build_num }}"
-          BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
-          TARBALL="${{ env.APP_NAME }}-${BUILD_TAG}.tar.gz"
+    #   - name: Download artifact from S3
+    #     run: |
+    #       BUILD_NUM="${{ steps.resolve.outputs.build_num }}"
+    #       BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
+    #       TARBALL="${{ env.APP_NAME }}-${BUILD_TAG}.tar.gz"
  
-          aws s3 cp \
-            "s3://${{ env.S3_BUCKET }}/builds/${BUILD_NUM}/${TARBALL}" \
-            "/tmp/${TARBALL}"
+    #       aws s3 cp \
+    #         "s3://${{ env.S3_BUCKET }}/builds/${BUILD_NUM}/${TARBALL}" \
+    #         "/tmp/${TARBALL}"
  
-          tar -xzf "/tmp/${TARBALL}" -C /tmp
-          echo "Artifact contents:"
-          ls "/tmp/${{ env.APP_NAME }}-${BUILD_TAG}/"
+    #       tar -xzf "/tmp/${TARBALL}" -C /tmp
+    #       echo "Artifact contents:"
+    #       ls "/tmp/${{ env.APP_NAME }}-${BUILD_TAG}/"
 
       - name: Setup Helm
         uses: azure/setup-helm@v3
