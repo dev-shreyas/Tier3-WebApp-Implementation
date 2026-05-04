@@ -26,6 +26,7 @@ on:
     branches:
       - main
       - master
+      - '**'
     paths:
       - ".github/workflows/continous-integration.yml"    
 
