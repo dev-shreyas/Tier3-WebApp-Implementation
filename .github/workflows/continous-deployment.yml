@@ -16,7 +16,18 @@ on:
           - dev
           - staging
           - prod
-      
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/continous-deployment.yml"        
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/continous-deployment.yml"    
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
