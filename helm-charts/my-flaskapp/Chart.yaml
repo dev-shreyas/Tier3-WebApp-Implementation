@@ -1,5 +1,5 @@
 apiVersion: v2
-name: my-flaskapp
+name: flaskapp
 description: A Simple Helm chart for deploying a Flask application on Kubernetes
 
 # A chart can be either an 'application' or a 'library' chart.
