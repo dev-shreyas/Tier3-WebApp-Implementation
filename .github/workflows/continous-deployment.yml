@@ -134,7 +134,7 @@ jobs:
           IMAGE_TAG="${{ steps.resolve.outputs.image_tag }}"
           BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
  
-          helm upgrade "${{ env.HELM_RELEASE }}" ./helm/flaskapp \
+          helm upgrade "${{ env.HELM_RELEASE }}" ./helm-charts/my-flaskapp \
             --install \
             --atomic \
             --timeout 5m \
