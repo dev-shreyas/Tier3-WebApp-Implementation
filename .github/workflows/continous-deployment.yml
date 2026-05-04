@@ -21,13 +21,13 @@ on:
       - main
       - master
     paths:
-      - ".github/workflows/continous-deployment.yml"        
+      - ".github/workflows/continous-integration.yml"        
   push:
     branches:
       - main
       - master
     paths:
-      - ".github/workflows/continous-deployment.yml"    
+      - ".github/workflows/continous-integration.yml"    
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
