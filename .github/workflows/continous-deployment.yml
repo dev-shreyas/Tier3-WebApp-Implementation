@@ -1,0 +1,204 @@
+name: Flask App CD - Deploy to EKS using Helm
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build number to deploy (leave empty to deploy latest)"
+        required: false
+        default: ""
+      environment:
+        description: "Target environment (dev/staging/prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  EKS_CLUSTER: ${{ vars.EKS_CLUSTER_NAME }}
+  HELM_RELEASE: flaskapp
+  HELM_NAMESPACE: flaskapp    
+  APP_NAME: flaskapp
+
+jobs:
+  deploy:
+    name: Deploy to EKS using Helm
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} #arn:aws:iam::881953412430:role/github-terraform-role
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Configure kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      - name: Resolve build number
+        id: resolve
+        run: |
+          BUILD_INPUT="${{ github.event.inputs.build_number }}"
+ 
+          if [ -n "${BUILD_INPUT}" ]; then
+            BUILD_NUM="${BUILD_INPUT}"
+            echo "Using manually specified build: ${BUILD_NUM}"
+          else
+            # Read the latest.txt pointer written by the CI pipeline
+            LATEST=$(aws s3 cp "s3://${{ env.S3_BUCKET }}/latest.txt" - 2>/dev/null || echo "")
+            if [ -z "${LATEST}" ]; then
+              echo "ERROR: Could not read latest.txt from S3. No builds published yet?"
+              exit 1
+            fi
+            # latest.txt contains: builds/42/flaskapp-build-42-abc1234.tar.gz
+            BUILD_NUM=$(echo "${LATEST}" | cut -d'/' -f2)
+            echo "Resolved latest build from S3: ${BUILD_NUM}"
+          fi
+ 
+          # Download the manifest to get the exact image tag
+          MANIFEST=$(aws s3 cp "s3://${{ env.S3_BUCKET }}/builds/${BUILD_NUM}/manifest.json" -)
+          BUILD_TAG=$(echo "${MANIFEST}" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+          ECR_REGISTRY="${{ steps.ecr-login.outputs.registry }}"
+          IMAGE_TAG="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:${BUILD_TAG}"
+ 
+          echo "build_num=${BUILD_NUM}"   >> $GITHUB_OUTPUT
+          echo "build_tag=${BUILD_TAG}"   >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}"   >> $GITHUB_OUTPUT
+ 
+          echo "### Deploying" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-|-|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | \`${BUILD_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | \`${IMAGE_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Download artifact from S3
+        run: |
+          BUILD_NUM="${{ steps.resolve.outputs.build_num }}"
+          BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
+          TARBALL="${{ env.APP_NAME }}-${BUILD_TAG}.tar.gz"
+ 
+          aws s3 cp \
+            "s3://${{ env.S3_BUCKET }}/builds/${BUILD_NUM}/${TARBALL}" \
+            "/tmp/${TARBALL}"
+ 
+          tar -xzf "/tmp/${TARBALL}" -C /tmp
+          echo "Artifact contents:"
+          ls "/tmp/${{ env.APP_NAME }}-${BUILD_TAG}/"
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.14.0
+          
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace "${{ env.HELM_NAMESPACE }}" 2>/dev/null || \
+            kubectl create namespace "${{ env.HELM_NAMESPACE }}"
+
+      - name: Helm upgrade --install
+        id: helm-deploy
+        run: |
+          IMAGE_TAG="${{ steps.resolve.outputs.image_tag }}"
+          BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
+ 
+          helm upgrade "${{ env.HELM_RELEASE }}" ./helm/flaskapp \
+            --install \
+            --atomic \
+            --timeout 5m \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            --set image.repository="${IMAGE_TAG%:*}" \
+            --set image.tag="${IMAGE_TAG##*:}" \
+            --set app.buildTag="${BUILD_TAG}" \
+            --set app.buildNumber="${{ steps.resolve.outputs.build_num }}" \
+            --wait
+ 
+          echo "Helm release status:"
+          helm status "${{ env.HELM_RELEASE }}" --namespace "${{ env.HELM_NAMESPACE }}"
+
+      - name: Wait for deployment rollout
+        run: |
+          kubectl rollout status deployment/"${{ env.HELM_RELEASE }}" \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            --timeout=5m
+            
+      - name: Fetch ALB URL
+        id: alb
+        run: |
+          NS="${{ env.HELM_NAMESPACE }}"
+          RELEASE="${{ env.HELM_RELEASE }}"
+ 
+          echo "Waiting for ALB hostname to be assigned (up to 3 minutes)..."
+          for i in $(seq 1 36); do
+            # Try Ingress first
+            HOSTNAME=$(kubectl get ingress "${RELEASE}" \
+              --namespace "${NS}" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+ 
+            # Fall back to Service of type LoadBalancer
+            if [ -z "${HOSTNAME}" ]; then
+              HOSTNAME=$(kubectl get service "${RELEASE}" \
+                --namespace "${NS}" \
+                -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            fi
+ 
+            if [ -n "${HOSTNAME}" ]; then
+              echo "ALB hostname assigned: ${HOSTNAME}"
+              break
+            fi
+            echo "Attempt ${i}/36 — ALB not ready yet, retrying in 5s..."
+            sleep 5
+          done
+ 
+          if [ -z "${HOSTNAME}" ]; then
+            echo "WARNING: ALB hostname not available after 3 minutes."
+            HOSTNAME="(ALB provisioning — check AWS Console)"
+          fi
+ 
+          ALB_URL="http://${HOSTNAME}"
+          echo "alb_url=${ALB_URL}"      >> $GITHUB_OUTPUT
+          echo "alb_hostname=${HOSTNAME}" >> $GITHUB_OUTPUT      
+          
+      - name: Post deployment summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment result" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|-|-|" >> $GITHUB_STEP_SUMMARY
+          echo "| App URL | ${{ steps.alb.outputs.alb_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Helm release | \`${{ env.HELM_RELEASE }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Namespace | \`${{ env.HELM_NAMESPACE }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | \`${{ steps.resolve.outputs.build_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Access your app:** ${{ steps.alb.outputs.alb_url }}" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Print ALB URL
+        run: |
+          echo ""
+          echo "============================================"
+          echo "  APP URL: ${{ steps.alb.outputs.alb_url }}"
+          echo "============================================"
+          echo ""          
+          
+          
