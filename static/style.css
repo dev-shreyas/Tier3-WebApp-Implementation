@@ -1,3 +1,7 @@
+/* ============================================
+   ENHANCED TASK MANAGER - MODERN UI DESIGN
+   ============================================ */
+
 /* Global Styles */
 :root {
     --primary-color: #6366f1;
@@ -5,27 +9,33 @@
     --success-color: #10b981;
     --warning-color: #f59e0b;
     --danger-color: #ef4444;
+    --info-color: #0ea5e9;
     --light-bg: #f9fafb;
     --border-color: #e5e7eb;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
     --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
     --text-color: #1f2937;
+    --text-secondary: #6b7280;
     --card-bg: #ffffff;
     --input-bg: #ffffff;
     --input-border: #d1d5db;
     --hover-bg: #f3f4f6;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Dark mode variables */
 html.dark-mode {
-    --light-bg: #1a1a1a;
+    --light-bg: #111827;
     --text-color: #f3f4f6;
-    --card-bg: #2d2d2d;
-    --input-bg: #3a3a3a;
-    --input-border: #4a4a4a;
-    --border-color: #3a3a3a;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    --hover-bg: #3a3a3a;
+    --text-secondary: #d1d5db;
+    --card-bg: #1f2937;
+    --input-bg: #374151;
+    --input-border: #4b5563;
+    --border-color: #374151;
+    --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --hover-bg: #374151;
 }
 
 * {
@@ -34,17 +44,22 @@ html.dark-mode {
     box-sizing: border-box;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
     background-color: var(--light-bg);
     color: var(--text-color);
     line-height: 1.6;
     transition: background-color 0.3s ease, color 0.3s ease;
+    font-size: 14px;
 }
 
 /* Navbar Styles */
 .navbar {
-    border-bottom: 3px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
     backdrop-filter: blur(10px);
     background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
     box-shadow: var(--shadow-sm);
