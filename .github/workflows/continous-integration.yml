@@ -11,6 +11,7 @@ on:
       - "app/**"
       - "helm-charts/**"
       - ".github/workflows/continous-integration.yml"
+      - '**'
   pull_request:
     branches:
       - main
@@ -19,6 +20,7 @@ on:
       - "app/**"
       - "helm-charts/**"
       - ".github/workflows/continous-integration.yml"
+      - '**'
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
