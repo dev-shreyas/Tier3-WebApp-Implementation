@@ -1,0 +1,476 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Task Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section with Stats -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h2 mb-2">📊 Dashboard</h1>
+                    <p class="text-muted">Welcome back! Here's your task overview.</p>
+                </div>
+                <a href="{{ url_for('add_item') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-plus"></i> New Task
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon">📋</div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ total }}</div>
+                    <div class="stat-label">Total Tasks</div>
+                </div>
+                <div class="stat-progress" style="width: {{ (total * 10) % 100 }}%"></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ completed }}</div>
+                    <div class="stat-label">Completed</div>
+                    <small class="stat-percentage">{{ "%.0f"|format((completed/total*100) if total > 0 else 0) }}%</small>
+                </div>
+                <div class="stat-progress" style="width: {{ (completed/total*100) if total > 0 else 0 }}%; background-color: var(--success-color);"></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-warning">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ pending }}</div>
+                    <div class="stat-label">Pending</div>
+                    <small class="stat-percentage">{{ "%.0f"|format((pending/total*100) if total > 0 else 0) }}%</small>
+                </div>
+                <div class="stat-progress" style="width: {{ (pending/total*100) if total > 0 else 0 }}%; background-color: var(--warning-color);"></div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-danger">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ overdue }}</div>
+                    <div class="stat-label">Overdue</div>
+                    {% if overdue > 0 %}
+                    <small class="stat-alert">Need attention!</small>
+                    {% else %}
+                    <small class="stat-success">All on track</small>
+                    {% endif %}
+                </div>
+                <div class="stat-progress" style="width: {{ (overdue/total*100) if total > 0 else 0 }}%; background-color: var(--danger-color);"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Filters and Search -->
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control search-input" id="taskSearch" 
+                                   placeholder="🔍 Search tasks...">
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-control filter-select" id="priorityFilter">
+                                <option value="">All Priorities</option>
+                                <option value="high">🔴 High</option>
+                                <option value="medium">🟡 Medium</option>
+                                <option value="low">🟢 Low</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tasks List -->
+                <div class="card-body p-0">
+                    {% if items %}
+                    <div class="task-list">
+                        {% for item in items %}
+                        <div class="task-item" data-priority="{{ item['priority'] }}" data-status="{{ item['status'] }}">
+                            <div class="task-checkbox">
+                                <input type="checkbox" class="form-check-input task-toggle" data-task-id="{{ item['id'] }}"
+                                    {% if item['status'] == 'completed' %}checked{% endif %}>
+                            </div>
+                            <div class="task-content">
+                                <div class="task-title {% if item['status'] == 'completed' %}completed{% endif %}">
+                                    {{ item['name'] }}
+                                </div>
+                                <div class="task-meta">
+                                    {% if item['category_name'] %}
+                                    <span class="badge" style="background-color: {{ item['category_color'] }}20; color: {{ item['category_color'] }};">
+                                        {{ item['category_name'] }}
+                                    </span>
+                                    {% endif %}
+                                    {% if item['due_date'] %}
+                                    <span class="badge badge-light">
+                                        📅 {{ item['due_date'] }}
+                                    </span>
+                                    {% endif %}
+                                    {% if item['tags'] %}
+                                    <span class="badge badge-info">#{{ item['tags']|replace(',', ' #') }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="task-priority priority-{{ item['priority'] }}">
+                                {% if item['priority'] == 'high' %}🔴
+                                {% elif item['priority'] == 'medium' %}🟡
+                                {% else %}🟢{% endif %}
+                            </div>
+                            <div class="task-actions">
+                                <a href="{{ url_for('edit_item', item_id=item['id']) }}" 
+                                   class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_item', item_id=item['id']) }}" 
+                                      style="display:inline;" onsubmit="return confirm('Delete this task?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <div style="font-size: 48px; margin-bottom: 10px;">📭</div>
+                        <h5>No tasks yet!</h5>
+                        <p class="text-muted">Create your first task to get started.</p>
+                        <a href="{{ url_for('add_item') }}" class="btn btn-primary">Create Task</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Priority Distribution -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Priority Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="priority-chart">
+                        <div class="priority-item">
+                            <div class="priority-label">
+                                <span>🔴 High</span>
+                                <span class="badge badge-danger">{{ priority_stats['high'] }}</span>
+                            </div>
+                            <div class="priority-bar">
+                                <div class="priority-fill high" style="width: {{ (priority_stats['high']/(priority_stats['high'] + priority_stats['medium'] + priority_stats['low'] + 0.1))*100 }}%"></div>
+                            </div>
+                        </div>
+                        <div class="priority-item">
+                            <div class="priority-label">
+                                <span>🟡 Medium</span>
+                                <span class="badge badge-warning">{{ priority_stats['medium'] }}</span>
+                            </div>
+                            <div class="priority-bar">
+                                <div class="priority-fill medium" style="width: {{ (priority_stats['medium']/(priority_stats['high'] + priority_stats['medium'] + priority_stats['low'] + 0.1))*100 }}%"></div>
+                            </div>
+                        </div>
+                        <div class="priority-item">
+                            <div class="priority-label">
+                                <span>🟢 Low</span>
+                                <span class="badge badge-success">{{ priority_stats['low'] }}</span>
+                            </div>
+                            <div class="priority-bar">
+                                <div class="priority-fill low" style="width: {{ (priority_stats['low']/(priority_stats['high'] + priority_stats['medium'] + priority_stats['low'] + 0.1))*100 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categories -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Categories</h5>
+                        <a href="{{ url_for('manage_categories') }}" class="btn btn-sm btn-outline-primary">
+                            Manage
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="category-list">
+                        {% for category in categories %}
+                        <div class="category-item">
+                            <span class="category-color" style="background-color: {{ category['color'] }}"></span>
+                            <span class="category-name">{{ category['name'] }}</span>
+                            <span class="badge badge-secondary">
+                                {{ items|selectattr('category_id', 'equalto', category['id'])|list|length }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="quick-stat">
+                        <div class="quick-stat-label">Completion Rate</div>
+                        <div class="quick-stat-value">{{ "%.0f"|format((completed/total*100) if total > 0 else 0) }}%</div>
+                    </div>
+                    <div class="quick-stat">
+                        <div class="quick-stat-label">Tasks This Week</div>
+                        <div class="quick-stat-value">{{ items|length }}</div>
+                    </div>
+                    <div class="quick-stat">
+                        <div class="quick-stat-label">Average Priority</div>
+                        <div class="quick-stat-value">
+                            {% if priority_stats['high'] > 0 %}High{% elif priority_stats['medium'] > 0 %}Medium{% else %}Low{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+}
+
+.stat-card-primary { border-left: 4px solid var(--primary-color); }
+.stat-card-success { border-left: 4px solid var(--success-color); }
+.stat-card-warning { border-left: 4px solid var(--warning-color); }
+.stat-card-danger { border-left: 4px solid var(--danger-color); }
+
+.stat-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.stat-percentage, .stat-alert, .stat-success {
+    font-size: 11px;
+    margin-top: 4px;
+    display: block;
+}
+
+.stat-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transition: var(--transition);
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.task-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.task-item.completed .task-title {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+.task-checkbox {
+    margin-right: 12px;
+}
+
+.task-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.task-title {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 4px;
+}
+
+.task-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--primary-color);
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.priority-{{ item['priority'] }} {
+    font-size: 14px;
+    margin: 0 12px;
+}
+
+.task-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.priority-chart .priority-item {
+    margin-bottom: 16px;
+}
+
+.priority-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.priority-bar {
+    height: 8px;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.priority-fill {
+    height: 100%;
+    transition: var(--transition);
+}
+
+.priority-fill.high { background-color: var(--danger-color); }
+.priority-fill.medium { background-color: var(--warning-color); }
+.priority-fill.low { background-color: var(--success-color); }
+
+.category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background-color: var(--hover-bg);
+    border-radius: 6px;
+    gap: 8px;
+}
+
+.category-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.quick-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.quick-stat:last-child {
+    border-bottom: none;
+}
+
+.quick-stat-label {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.quick-stat-value {
+    font-weight: bold;
+    color: var(--primary-color);
+    font-size: 16px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Search functionality
+    const searchInput = document.getElementById('taskSearch');
+    const priorityFilter = document.getElementById('priorityFilter');
+    const taskItems = document.querySelectorAll('.task-item');
+
+    function filterTasks() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const priorityTerm = priorityFilter.value;
+
+        taskItems.forEach(item => {
+            const title = item.querySelector('.task-title').textContent.toLowerCase();
+            const priority = item.getAttribute('data-priority');
+            
+            const matchesSearch = title.includes(searchTerm);
+            const matchesPriority = !priorityTerm || priority === priorityTerm;
+            
+            item.style.display = matchesSearch && matchesPriority ? 'flex' : 'none';
+        });
+    }
+
+    searchInput.addEventListener('input', filterTasks);
+    priorityFilter.addEventListener('change', filterTasks);
+
+    // Toggle task completion
+    document.querySelectorAll('.task-toggle').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const taskId = this.getAttribute('data-task-id');
+            const taskItem = this.closest('.task-item');
+            const status = this.checked ? 'completed' : 'pending';
+            
+            // You can add AJAX call here to update the task status
+            if (this.checked) {
+                taskItem.classList.add('completed');
+            } else {
+                taskItem.classList.remove('completed');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
