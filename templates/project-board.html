@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - Task Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .project-board-header {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: white;
+        border-radius: 12px;
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+
+    .project-board-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .project-board-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .board-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .board-tab {
+        padding: 12px 20px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-muted);
+        border-bottom: 3px solid transparent;
+        transition: all 0.3s ease;
+    }
+
+    .board-tab.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+    }
+
+    .board-tab:hover {
+        color: var(--text-color);
+    }
+
+    .view-container {
+        display: none;
+    }
+
+    .view-container.active {
+        display: block;
+    }
+
+    .list-view {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .list-item {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+
+    .list-item:hover {
+        box-shadow: var(--shadow);
+        border-color: var(--primary-color);
+    }
+
+    .list-item-content {
+        flex: 1;
+    }
+
+    .list-item-title {
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 4px;
+    }
+
+    .list-item-meta {
+        display: flex;
+        gap: 15px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .empty-project {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--card-bg);
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        color: var(--text-muted);
+        opacity: 0.5;
+        margin-bottom: 20px;
+    }
+
+    .empty-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 10px;
+    }
+
+    .empty-text {
+        color: var(--text-muted);
+        margin-bottom: 20px;
+    }
+
+    .project-info-box {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        font-weight: 500;
+        color: var(--text-color);
+    }
+
+    .info-value {
+        color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+        .project-board-header {
+            padding: 20px;
+        }
+
+        .project-board-title {
+            font-size: 1.5rem;
+        }
+
+        .board-tabs {
+            overflow-x: auto;
+        }
+
+        .board-tab {
+            padding: 10px 15px;
+            font-size: 0.9rem;
+        }
+
+        .list-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .list-item-meta {
+            margin-top: 12px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="project-board-header" style="border-left: 6px solid {{ project.color }};">
+            <h1 class="project-board-title">{{ project.name }}</h1>
+            {% if project.description %}
+            <p class="mb-0" style="opacity: 0.9;">{{ project.description }}</p>
+            {% endif %}
+            <div class="project-board-actions">
+                <a href="/add" class="btn btn-light btn-sm">
+                    <i class="fas fa-plus"></i> Add Task
+                </a>
+                <a href="/projects" class="btn btn-light btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <!-- View Tabs -->
+        <div class="board-tabs">
+            <button class="board-tab active" onclick="switchView('list')">
+                <i class="fas fa-list"></i> List View
+            </button>
+            <button class="board-tab" onclick="switchView('kanban')">
+                <i class="fas fa-layer-group"></i> Kanban
+            </button>
+            <button class="board-tab" onclick="switchView('details')">
+                <i class="fas fa-info-circle"></i> Details
+            </button>
+        </div>
+
+        <!-- List View -->
+        <div id="list-view" class="view-container active">
+            <div class="list-view">
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-title">Design Homepage</div>
+                        <div class="list-item-meta">
+                            <span><i class="fas fa-flag"></i> High Priority</span>
+                            <span><i class="fas fa-calendar"></i> 2024-05-15</span>
+                            <span><span class="badge status-in-progress">In Progress</span></span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-title">Setup Database</div>
+                        <div class="list-item-meta">
+                            <span><i class="fas fa-flag"></i> Medium Priority</span>
+                            <span><i class="fas fa-calendar"></i> 2024-05-20</span>
+                            <span><span class="badge status-pending">To Do</span></span>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban View -->
+        <div id="kanban-view" class="view-container">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                <div style="background: #f3f4f6; border-radius: 8px; padding: 16px;">
+                    <h5 style="font-weight: 600; margin-bottom: 15px; color: #f59e0b;">
+                        <i class="fas fa-circle-notch"></i> To Do (2)
+                    </h5>
+                    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Setup Database</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">Medium Priority</div>
+                    </div>
+                </div>
+
+                <div style="background: #f3f4f6; border-radius: 8px; padding: 16px;">
+                    <h5 style="font-weight: 600; margin-bottom: 15px; color: #3b82f6;">
+                        <i class="fas fa-spinner"></i> In Progress (1)
+                    </h5>
+                    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Design Homepage</div>
+                        <div style="font-size: 0.85rem; color: #6b7280;">High Priority</div>
+                    </div>
+                </div>
+
+                <div style="background: #f3f4f6; border-radius: 8px; padding: 16px;">
+                    <h5 style="font-weight: 600; margin-bottom: 15px; color: #10b981;">
+                        <i class="fas fa-check-circle"></i> Completed (0)
+                    </h5>
+                    <div style="text-align: center; padding: 40px 20px; color: #9ca3af; font-size: 0.9rem;">
+                        No completed tasks
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details View -->
+        <div id="details-view" class="view-container">
+            <div class="row">
+                <div class="col-12 col-md-6">
+                    <div class="project-info-box">
+                        <h5 style="margin-bottom: 20px; font-weight: 600;">Project Overview</h5>
+                        <div class="info-row">
+                            <span class="info-label">Project Name</span>
+                            <span class="info-value">{{ project.name }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Created</span>
+                            <span class="info-value">{{ project.created_at[:10] if project.created_at else 'N/A' }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Total Tasks</span>
+                            <span class="info-value">5</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Completed Tasks</span>
+                            <span class="info-value">2</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Progress</span>
+                            <span class="info-value">40%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="project-info-box">
+                        <h5 style="margin-bottom: 20px; font-weight: 600;">Team</h5>
+                        <div class="info-row">
+                            <span class="info-label">Members</span>
+                            <span class="info-value">1 member</span>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                                <div style="width: 40px; height: 40px; border-radius: 50%; background: #6366f1; color: white; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 500;">You</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Owner</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function switchView(viewName) {
+        // Hide all views
+        document.querySelectorAll('.view-container').forEach(view => {
+            view.classList.remove('active');
+        });
+
+        // Deactivate all tabs
+        document.querySelectorAll('.board-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        // Show selected view
+        document.getElementById(viewName + '-view').classList.add('active');
+
+        // Activate selected tab
+        event.target.closest('.board-tab').classList.add('active');
+    }
+</script>
+{% endblock %}

@@ -2,9 +2,11 @@ from flask import Flask, jsonify, render_template, request, redirect, url_for, f
 import sqlite3
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from functools import wraps
 import hashlib
+import json
+from decimal import Decimal
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'prod-secret-key-change-this-in-production')
@@ -31,6 +33,9 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
+                avatar TEXT,
+                theme TEXT DEFAULT 'light',
+                is_active BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -44,6 +49,7 @@ def init_db():
                 name TEXT NOT NULL,
                 color TEXT DEFAULT '#6366f1',
                 icon TEXT DEFAULT 'inbox',
+                is_default BOOLEAN DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
@@ -61,11 +67,59 @@ def init_db():
                 priority TEXT DEFAULT 'medium',
                 due_date DATE,
                 tags TEXT,
+                time_estimated REAL DEFAULT 0,
+                time_spent REAL DEFAULT 0,
+                recurring TEXT,
+                reminder_date DATETIME,
+                position INTEGER DEFAULT 0,
                 completed_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+            )
+        """)
+        
+        # Subtasks table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS subtasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                completed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES items(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # Time tracking table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS time_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                duration REAL NOT NULL,
+                notes TEXT,
+                entry_date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES items(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # Reminders table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                reminder_type TEXT DEFAULT 'at_time',
+                reminder_time DATETIME NOT NULL,
+                is_sent BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES items(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         
@@ -80,6 +134,33 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (task_id) REFERENCES items(id) ON DELETE SET NULL
+            )
+        """)
+        
+        # Projects/Boards table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                color TEXT DEFAULT '#6366f1',
+                view_type TEXT DEFAULT 'list',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # Project members table
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS project_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT DEFAULT 'member',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         
@@ -598,7 +679,500 @@ def search():
     
     return render_template("search.html", items=items, query=query, categories=categories)
 
-# Analytics and Statistics
+# Subtasks Management
+@app.route("/api/task/<int:task_id>/subtasks", methods=['GET'])
+@login_required
+def get_subtasks(task_id):
+    """Get all subtasks for a task"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Verify task belongs to user
+        task = db.execute(
+            "SELECT id FROM items WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        ).fetchone()
+        
+        if not task:
+            return jsonify(error='Task not found'), 404
+        
+        subtasks = db.execute(
+            "SELECT * FROM subtasks WHERE task_id = ? ORDER BY created_at",
+            (task_id,)
+        ).fetchall()
+        db.close()
+        
+        return jsonify([dict(st) for st in subtasks])
+    except Exception as e:
+        app.logger.error(f"Error fetching subtasks: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+@app.route("/api/task/<int:task_id>/subtask", methods=['POST'])
+@login_required
+def add_subtask(task_id):
+    """Add a subtask"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        
+        db = get_db()
+        
+        # Verify task belongs to user
+        task = db.execute(
+            "SELECT id FROM items WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        ).fetchone()
+        
+        if not task:
+            return jsonify(error='Task not found'), 404
+        
+        cursor = db.execute(
+            "INSERT INTO subtasks (task_id, name, status) VALUES (?, ?, ?)",
+            (task_id, data.get('name'), 'pending')
+        )
+        db.commit()
+        
+        subtask_id = cursor.lastrowid
+        log_activity(user_id, 'subtask_created', task_id, data.get('name'))
+        
+        db.close()
+        
+        return jsonify(id=subtask_id, name=data.get('name'), status='pending')
+    except Exception as e:
+        app.logger.error(f"Error adding subtask: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+@app.route("/api/subtask/<int:subtask_id>/toggle", methods=['POST'])
+@login_required
+def toggle_subtask(subtask_id):
+    """Toggle subtask completion status"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Verify subtask and get task_id
+        subtask = db.execute(
+            "SELECT st.*, i.user_id FROM subtasks st JOIN items i ON st.task_id = i.id WHERE st.id = ?",
+            (subtask_id,)
+        ).fetchone()
+        
+        if not subtask or subtask['user_id'] != user_id:
+            return jsonify(error='Subtask not found'), 404
+        
+        new_status = 'completed' if subtask['status'] == 'pending' else 'pending'
+        completed_at = datetime.now() if new_status == 'completed' else None
+        
+        db.execute(
+            "UPDATE subtasks SET status = ?, completed_at = ? WHERE id = ?",
+            (new_status, completed_at, subtask_id)
+        )
+        db.commit()
+        
+        log_activity(user_id, 'subtask_toggled', subtask['task_id'])
+        
+        db.close()
+        
+        return jsonify(status=new_status)
+    except Exception as e:
+        app.logger.error(f"Error toggling subtask: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+# Time Tracking Routes
+@app.route("/api/task/<int:task_id>/time-entries", methods=['GET'])
+@login_required
+def get_time_entries(task_id):
+    """Get time entries for a task"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Verify task belongs to user
+        task = db.execute(
+            "SELECT id FROM items WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        ).fetchone()
+        
+        if not task:
+            return jsonify(error='Task not found'), 404
+        
+        entries = db.execute(
+            "SELECT * FROM time_entries WHERE task_id = ? ORDER BY entry_date DESC",
+            (task_id,)
+        ).fetchall()
+        db.close()
+        
+        return jsonify([dict(e) for e in entries])
+    except Exception as e:
+        app.logger.error(f"Error fetching time entries: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+@app.route("/api/task/<int:task_id>/time-entry", methods=['POST'])
+@login_required
+def add_time_entry(task_id):
+    """Log time spent on a task"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        
+        db = get_db()
+        
+        # Verify task belongs to user
+        task = db.execute(
+            "SELECT * FROM items WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        ).fetchone()
+        
+        if not task:
+            return jsonify(error='Task not found'), 404
+        
+        duration = float(data.get('duration', 0))
+        notes = data.get('notes', '')
+        entry_date = data.get('date', str(date.today()))
+        
+        cursor = db.execute(
+            "INSERT INTO time_entries (task_id, user_id, duration, notes, entry_date) VALUES (?, ?, ?, ?, ?)",
+            (task_id, user_id, duration, notes, entry_date)
+        )
+        db.commit()
+        
+        # Update task's time_spent
+        db.execute(
+            "UPDATE items SET time_spent = time_spent + ? WHERE id = ?",
+            (duration, task_id)
+        )
+        db.commit()
+        
+        log_activity(user_id, 'time_logged', task_id, f'{duration} hours')
+        
+        db.close()
+        
+        return jsonify(id=cursor.lastrowid, duration=duration, notes=notes)
+    except Exception as e:
+        app.logger.error(f"Error adding time entry: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+# Kanban Board Route
+@app.route("/kanban")
+@login_required
+def kanban_board():
+    """Kanban board view"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Get tasks grouped by status
+        items = db.execute(
+            """SELECT i.*, c.name as category_name, c.color as category_color 
+               FROM items i 
+               LEFT JOIN categories c ON i.category_id = c.id 
+               WHERE i.user_id = ? AND i.status IN ('pending', 'in_progress', 'completed')
+               ORDER BY i.position, i.priority DESC, i.created_at""",
+            (user_id,)
+        ).fetchall()
+        
+        categories = db.execute(
+            "SELECT * FROM categories WHERE user_id = ? ORDER BY name",
+            (user_id,)
+        ).fetchall()
+        
+        db.close()
+        
+        # Group tasks by status
+        kanban_data = {
+            'pending': [dict(i) for i in items if i['status'] == 'pending'],
+            'in_progress': [dict(i) for i in items if i['status'] == 'in_progress'],
+            'completed': [dict(i) for i in items if i['status'] == 'completed']
+        }
+        
+        return render_template("kanban.html", kanban_data=kanban_data, categories=categories)
+    except Exception as e:
+        app.logger.error(f"Kanban board error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route("/api/task/<int:task_id>/status", methods=['PUT'])
+@login_required
+def update_task_status(task_id):
+    """Update task status via drag and drop"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        new_status = data.get('status')
+        
+        db = get_db()
+        
+        # Verify task belongs to user
+        task = db.execute(
+            "SELECT id FROM items WHERE id = ? AND user_id = ?",
+            (task_id, user_id)
+        ).fetchone()
+        
+        if not task:
+            return jsonify(error='Task not found'), 404
+        
+        completed_at = datetime.now() if new_status == 'completed' else None
+        
+        db.execute(
+            "UPDATE items SET status = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_status, completed_at, task_id)
+        )
+        db.commit()
+        
+        log_activity(user_id, 'status_changed', task_id, new_status)
+        
+        db.close()
+        
+        return jsonify(status='success')
+    except Exception as e:
+        app.logger.error(f"Error updating task status: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+# Dashboard Customization
+@app.route("/dashboard-customizer")
+@login_required
+def dashboard_customizer():
+    """Dashboard customization page"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        categories = db.execute(
+            "SELECT * FROM categories WHERE user_id = ? ORDER BY name",
+            (user_id,)
+        ).fetchall()
+        
+        db.close()
+        
+        return render_template("dashboard-customizer.html", user=user, categories=categories)
+    except Exception as e:
+        app.logger.error(f"Dashboard customizer error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route("/api/user/theme", methods=['POST'])
+@login_required
+def update_theme():
+    """Update user theme preference"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        theme = data.get('theme', 'light')
+        
+        db = get_db()
+        db.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
+        db.commit()
+        db.close()
+        
+        session['theme'] = theme
+        return jsonify(status='success')
+    except Exception as e:
+        app.logger.error(f"Error updating theme: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+# Projects/Boards Management
+@app.route("/projects")
+@login_required
+def projects():
+    """List all projects"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        projects_list = db.execute(
+            "SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,)
+        ).fetchall()
+        
+        db.close()
+        
+        return render_template("projects.html", projects=projects_list)
+    except Exception as e:
+        app.logger.error(f"Projects error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route("/project/new", methods=['GET', 'POST'])
+@login_required
+def create_project():
+    """Create a new project"""
+    if request.method == 'POST':
+        try:
+            user_id = session['user_id']
+            name = request.form.get('name')
+            description = request.form.get('description')
+            color = request.form.get('color', '#6366f1')
+            
+            if not name:
+                flash('Project name is required!', 'error')
+                return redirect(url_for('create_project'))
+            
+            db = get_db()
+            cursor = db.execute(
+                "INSERT INTO projects (user_id, name, description, color) VALUES (?, ?, ?, ?)",
+                (user_id, name, description, color)
+            )
+            db.commit()
+            
+            project_id = cursor.lastrowid
+            log_activity(user_id, 'project_created', details=name)
+            
+            db.close()
+            
+            flash('Project created successfully!', 'success')
+            return redirect(url_for('projects'))
+        except Exception as e:
+            app.logger.error(f"Error creating project: {str(e)}")
+            flash(f'Error: {str(e)}', 'error')
+            return redirect(url_for('create_project'))
+    
+    return render_template("create-project.html")
+
+@app.route("/project/<int:project_id>/board")
+@login_required
+def project_board(project_id):
+    """View project board"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Verify project belongs to user
+        project = db.execute(
+            "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+            (project_id, user_id)
+        ).fetchone()
+        
+        if not project:
+            flash('Project not found!', 'error')
+            return redirect(url_for('projects'))
+        
+        db.close()
+        
+        return render_template("project-board.html", project=project)
+    except Exception as e:
+        app.logger.error(f"Project board error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('projects'))
+
+# Profile Management
+@app.route("/profile")
+@login_required
+def profile():
+    """User profile"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        
+        # Get user statistics
+        total_tasks = db.execute(
+            "SELECT COUNT(*) as count FROM items WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()['count']
+        
+        completed_tasks = db.execute(
+            "SELECT COUNT(*) as count FROM items WHERE user_id = ? AND status = 'completed'",
+            (user_id,)
+        ).fetchone()['count']
+        
+        projects_count = db.execute(
+            "SELECT COUNT(*) as count FROM projects WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()['count']
+        
+        db.close()
+        
+        return render_template(
+            "profile.html",
+            user=user,
+            total_tasks=total_tasks,
+            completed_tasks=completed_tasks,
+            projects_count=projects_count
+        )
+    except Exception as e:
+        app.logger.error(f"Profile error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route("/api/user/update", methods=['POST'])
+@login_required
+def update_user_profile():
+    """Update user profile"""
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+        
+        db = get_db()
+        
+        db.execute(
+            "UPDATE users SET email = ? WHERE id = ?",
+            (data.get('email'), user_id)
+        )
+        db.commit()
+        db.close()
+        
+        return jsonify(status='success')
+    except Exception as e:
+        app.logger.error(f"Error updating profile: {str(e)}")
+        return jsonify(error=str(e)), 500
+
+# Reports and Insights
+@app.route("/reports")
+@login_required
+def reports():
+    """Generate reports and insights"""
+    try:
+        user_id = session['user_id']
+        db = get_db()
+        
+        # Get all tasks
+        items = db.execute(
+            "SELECT * FROM items WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,)
+        ).fetchall()
+        
+        # Get time entries
+        time_entries = db.execute(
+            "SELECT * FROM time_entries WHERE user_id = ? ORDER BY entry_date DESC",
+            (user_id,)
+        ).fetchall()
+        
+        db.close()
+        
+        # Calculate insights
+        total_time_spent = sum(float(e['duration']) for e in time_entries)
+        avg_time_per_task = total_time_spent / len(items) if items else 0
+        
+        completion_rate = sum(1 for i in items if i['status'] == 'completed') / len(items) * 100 if items else 0
+        
+        # Priority breakdown
+        priority_data = {}
+        for priority in ['high', 'medium', 'low']:
+            completed = sum(1 for i in items if i['priority'] == priority and i['status'] == 'completed')
+            total = sum(1 for i in items if i['priority'] == priority)
+            priority_data[priority] = {
+                'total': total,
+                'completed': completed,
+                'rate': round(completed / total * 100) if total > 0 else 0
+            }
+        
+        return render_template(
+            "reports.html",
+            items=items,
+            total_time_spent=total_time_spent,
+            avg_time_per_task=avg_time_per_task,
+            completion_rate=completion_rate,
+            priority_data=priority_data,
+            time_entries=time_entries
+        )
+    except Exception as e:
+        app.logger.error(f"Reports error: {str(e)}")
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+
 @app.route("/analytics")
 @login_required
 def analytics():

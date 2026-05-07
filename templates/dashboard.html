@@ -1,282 +1,374 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Task Manager Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-</head>
-<body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient sticky-top">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
-                <i class="bi bi-lightning-charge"></i> Task Manager Pro
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Task Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        margin-bottom: 30px;
+    }
+
+    .dashboard-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .dashboard-subtitle {
+        color: var(--text-muted);
+        font-size: 1rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        box-shadow: var(--shadow);
+        transform: translateY(-2px);
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    .tasks-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+    }
+
+    .tasks-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .tasks-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .filter-btn {
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+
+    .filter-btn:hover,
+    .filter-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .tasks-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .task-item {
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .task-item:hover {
+        background-color: var(--light-bg);
+        border-color: var(--primary-color);
+    }
+
+    .task-item.completed {
+        opacity: 0.6;
+    }
+
+    .task-checkbox {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
+    .task-content {
+        flex: 1;
+    }
+
+    .task-name {
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 4px;
+    }
+
+    .task-item.completed .task-name {
+        text-decoration: line-through;
+        color: var(--text-muted);
+    }
+
+    .task-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .task-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .task-action-btn {
+        padding: 6px 10px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+
+    .task-action-btn:hover {
+        background-color: var(--light-bg);
+        color: var(--primary-color);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+        color: var(--text-muted);
+        opacity: 0.5;
+        margin-bottom: 15px;
+    }
+
+    .empty-text {
+        color: var(--text-muted);
+        margin-bottom: 20px;
+    }
+
+    .priority-badge {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-title {
+            font-size: 1.5rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .filter-buttons {
+            flex-wrap: wrap;
+        }
+
+        .task-meta {
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .task-item {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .task-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="dashboard-header d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="dashboard-title">Welcome, {{ session.username }}! 👋</h1>
+                <p class="dashboard-subtitle">Here's an overview of your tasks</p>
+            </div>
+            <a href="/add" class="btn btn-primary">
+                <i class="fas fa-plus"></i> New Task
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <form class="d-flex me-3" method="GET" action="{{ url_for('search') }}" style="width: 250px;">
-                            <input class="form-control form-control-sm" type="search" placeholder="Search tasks..." name="q" id="searchInput">
-                            <button class="btn btn-light btn-sm" type="submit"><i class="bi bi-search"></i></button>
-                        </form>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('analytics') }}">
-                            <i class="bi bi-graph-up"></i> Analytics
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('manage_categories') }}">
-                            <i class="bi bi-folder"></i> Categories
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <button class="dark-mode-toggle" title="Toggle dark mode">
-                            <i class="bi bi-moon"></i>
-                        </button>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ session.get('username', 'User') }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ url_for('add_item') }}" class="btn btn-primary btn-sm ms-2">
-                            <i class="bi bi-plus-circle"></i> Add Task
-                        </a>
-                    </li>
-                </ul>
-            </div>
         </div>
-    </nav>
-
-    <!-- Flash Messages -->
-    <div class="container-fluid px-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mt-3" role="alert">
-                        <i class="bi bi-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }}"></i>
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
     </div>
+</div>
 
-    <!-- Main Content -->
-    <div class="container-fluid px-4 py-4">
-        <div class="row mb-4">
-            <div class="col-lg-8">
-                <h1 class="h3 fw-bold mb-1">Welcome back, {{ session.get('username', 'User') }}! 👋</h1>
-                <p class="text-muted">Here is your task overview for today</p>
-            </div>
-            <div class="col-lg-4 text-lg-end">
-                <div class="btn-group" role="group">
-                    <input type="radio" class="btn-check" name="filter" id="filterAll" value="all" checked>
-                    <label class="btn btn-outline-primary btn-sm" for="filterAll">All</label>
-                    
-                    <input type="radio" class="btn-check" name="filter" id="filterPending" value="pending">
-                    <label class="btn btn-outline-primary btn-sm" for="filterPending">Pending</label>
-                    
-                    <input type="radio" class="btn-check" name="filter" id="filterCompleted" value="completed">
-                    <label class="btn btn-outline-primary btn-sm" for="filterCompleted">Completed</label>
-                </div>
-            </div>
-        </div>
+<!-- Statistics -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-tasks" style="color: #6366f1;"></i></div>
+        <div class="stat-value">{{ total }}</div>
+        <div class="stat-label">Total Tasks</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-check-circle" style="color: #10b981;"></i></div>
+        <div class="stat-value">{{ completed }}</div>
+        <div class="stat-label">Completed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-list" style="color: #3b82f6;"></i></div>
+        <div class="stat-value">{{ pending }}</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-exclamation-circle" style="color: #ef4444;"></i></div>
+        <div class="stat-value">{{ overdue }}</div>
+        <div class="stat-label">Overdue</div>
+    </div>
+</div>
 
-        <!-- Statistics Row -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="stat-card stat-total">
-                    <div class="stat-icon"><i class="bi bi-list-check"></i></div>
-                    <div class="stat-content">
-                        <h3>{{ total }}</h3>
-                        <p>Total Tasks</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stat-card stat-completed">
-                    <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
-                    <div class="stat-content">
-                        <h3>{{ completed }}</h3>
-                        <p>Completed</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stat-card stat-pending">
-                    <div class="stat-icon"><i class="bi bi-hourglass-split"></i></div>
-                    <div class="stat-content">
-                        <h3>{{ pending }}</h3>
-                        <p>Pending</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stat-card stat-danger">
-                    <div class="stat-icon"><i class="bi bi-exclamation-circle"></i></div>
-                    <div class="stat-content">
-                        <h3>{{ overdue }}</h3>
-                        <p>Overdue</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <!-- Tasks Section -->
-            <div class="col-lg-8">
-                <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-gradient text-white">
-                        <h5 class="mb-0"><i class="bi bi-list-task"></i> Your Tasks</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if items %}
-                            <div class="task-list">
-                                {% for item in items %}
-                                    <div class="task-item {% if item['status'] == 'completed' %}completed{% endif %}" data-status="{{ item['status'] }}">
-                                        <div class="task-header">
-                                            <div class="task-title-section">
-                                                <input type="checkbox" class="task-checkbox" {% if item['status'] == 'completed' %}checked{% endif %} data-task-id="{{ item['id'] }}">
-                                                <div>
-                                                    <h5 class="task-title">{{ item['name'] }}</h5>
-                                                    {% if item['description'] %}
-                                                        <p class="task-description">{{ item['description'][:100] }}{% if item['description']|length > 100 %}...{% endif %}</p>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            <div class="task-badges">
-                                                {% if item['category_name'] %}
-                                                    <span class="badge" style="background-color: {{ item['category_color'] }}; color: white;">
-                                                        {{ item['category_name'] }}
-                                                    </span>
-                                                {% endif %}
-                                                <span class="badge bg-{{ 'success' if item['priority'] == 'high' else 'warning' if item['priority'] == 'medium' else 'secondary' }}">
-                                                    {{ item['priority']|capitalize }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="task-footer">
-                                            <small class="text-muted">
-                                                {% if item['due_date'] %}
-                                                    <i class="bi bi-calendar"></i> {{ item['due_date'] }}
-                                                {% endif %}
-                                                {% if item['tags'] %}
-                                                    | <i class="bi bi-tags"></i> {{ item['tags'] }}
-                                                {% endif %}
-                                            </small>
-                                            <div class="task-actions">
-                                                <a href="{{ url_for('edit_item', item_id=item['id']) }}" class="btn btn-sm btn-outline-primary" title="Edit">
-                                                    <i class="bi bi-pencil"></i>
-                                                </a>
-                                                <form method="POST" action="{{ url_for('delete_item', item_id=item['id']) }}" style="display: inline;">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this task?')" title="Delete">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="empty-state">
-                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-                                <h5>No tasks yet</h5>
-                                <p class="text-muted">Create your first task to get started</p>
-                                <a href="{{ url_for('add_item') }}" class="btn btn-primary">
-                                    <i class="bi bi-plus-circle"></i> Create Task
-                                </a>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="col-lg-4">
-                <!-- Priority Breakdown -->
-                <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-gradient text-white">
-                        <h5 class="mb-0"><i class="bi bi-graph-up"></i> Priority Breakdown</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="priority-stat">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span><i class="bi bi-exclamation-circle text-danger"></i> High Priority</span>
-                                <strong>{{ priority_stats.high }}</strong>
-                            </div>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-danger" style="width: {{ (priority_stats.high / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span><i class="bi bi-exclamation-triangle text-warning"></i> Medium Priority</span>
-                                <strong>{{ priority_stats.medium }}</strong>
-                            </div>
-                            <div class="progress mb-3" style="height: 8px;">
-                                <div class="progress-bar bg-warning" style="width: {{ (priority_stats.medium / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
-                            </div>
-
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span><i class="bi bi-info-circle text-info"></i> Low Priority</span>
-                                <strong>{{ priority_stats.low }}</strong>
-                            </div>
-                            <div class="progress" style="height: 8px;">
-                                <div class="progress-bar bg-info" style="width: {{ (priority_stats.low / (priority_stats.high + priority_stats.medium + priority_stats.low) * 100) if (priority_stats.high + priority_stats.medium + priority_stats.low) > 0 else 0 }}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="card shadow-sm border-0">
-                    <div class="card-header bg-gradient text-white">
-                        <h5 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h5>
-                    </div>
-                    <div class="card-body">
-                        <a href="{{ url_for('add_item') }}" class="btn btn-primary w-100 mb-2">
-                            <i class="bi bi-plus-circle"></i> New Task
-                        </a>
-                        <a href="{{ url_for('manage_categories') }}" class="btn btn-outline-secondary w-100 mb-2">
-                            <i class="bi bi-folder"></i> Manage Categories
-                        </a>
-                        <a href="{{ url_for('analytics') }}" class="btn btn-outline-secondary w-100">
-                            <i class="bi bi-bar-chart"></i> View Analytics
-                        </a>
-                    </div>
-                </div>
-            </div>
+<!-- Tasks Section -->
+<div class="tasks-section">
+    <div class="tasks-header">
+        <h2 class="tasks-title"><i class="fas fa-tasks"></i> My Tasks</h2>
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterTasks('all')">All</button>
+            <button class="filter-btn" onclick="filterTasks('pending')">Pending</button>
+            <button class="filter-btn" onclick="filterTasks('completed')">Completed</button>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-4 mt-5">
-        <div class="container-fluid">
-            <p class="mb-1">Task Manager Pro - Professional Task Management System</p>
-            <small>© 2026 All Rights Reserved</small>
+    {% if items %}
+    <div class="tasks-list">
+        {% for item in items %}
+        <div class="task-item {% if item.status == 'completed' %}completed{% endif %}" data-status="{{ item.status }}">
+            <input type="checkbox" class="task-checkbox" {% if item.status == 'completed' %}checked{% endif %} 
+                   onchange="toggleTask({{ item.id }})">
+            <div class="task-content">
+                <div class="task-name">{{ item.name }}</div>
+                <div class="task-meta">
+                    {% if item.category_name %}
+                    <span style="background-color: {{ item.category_color }}20; color: {{ item.category_color }}; padding: 2px 8px; border-radius: 4px; font-weight: 500;">
+                        {{ item.category_name }}
+                    </span>
+                    {% endif %}
+                    {% if item.due_date %}
+                    <span><i class="fas fa-calendar"></i> {{ item.due_date }}</span>
+                    {% endif %}
+                    <span class="priority-badge priority-{{ item.priority }}">{{ item.priority.upper() }}</span>
+                </div>
+            </div>
+            <div class="task-actions">
+                <a href="/edit/{{ item.id }}" class="task-action-btn" title="Edit">
+                    <i class="fas fa-edit"></i>
+                </a>
+                <form method="POST" action="/delete/{{ item.id }}" style="display: inline;" 
+                      onsubmit="return confirm('Delete this task?');">
+                    <button type="submit" class="task-action-btn" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+            </div>
         </div>
-    </footer>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <i class="fas fa-inbox"></i>
+        </div>
+        <p class="empty-text">No tasks yet. Create one to get started!</p>
+        <a href="/add" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> Create Task
+        </a>
+    </div>
+    {% endif %}
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterTasks(filter) {
+        const items = document.querySelectorAll('.task-item');
+        
+        items.forEach(item => {
+            if (filter === 'all') {
+                item.style.display = 'flex';
+            } else if (filter === 'completed') {
+                item.style.display = item.classList.contains('completed') ? 'flex' : 'none';
+            } else if (filter === 'pending') {
+                item.style.display = !item.classList.contains('completed') ? 'flex' : 'none';
+            }
+        });
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+    }
+
+    function toggleTask(taskId) {
+        const statusMap = {
+            'pending': 'completed',
+            'completed': 'pending'
+        };
+
+        // Find the task item and update status
+        const taskItem = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (taskItem) {
+            const newStatus = statusMap[taskItem.dataset.status] || 'pending';
+            
+            API.put(`/api/task/${taskId}/status`, { status: newStatus })
+                .then(response => {
+                    location.reload();
+                })
+                .catch(error => {
+                    showNotification('Error updating task', 'error');
+                });
+        }
+    }
+</script>
+{% endblock %}

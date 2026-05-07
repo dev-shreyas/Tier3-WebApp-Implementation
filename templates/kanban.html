@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Kanban Board - Task Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kanban-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 20px;
+        padding: 20px 0;
+    }
+
+    .kanban-column {
+        background-color: var(--light-bg);
+        border-radius: 8px;
+        padding: 16px;
+        min-height: 600px;
+    }
+
+    .kanban-column-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        margin-bottom: 16px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .kanban-column-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: var(--text-color);
+    }
+
+    .kanban-count {
+        background-color: var(--primary-color);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .kanban-cards {
+        min-height: 500px;
+    }
+
+    .kanban-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        cursor: grab;
+        transition: all 0.3s ease;
+    }
+
+    .kanban-card:hover {
+        box-shadow: var(--shadow);
+        transform: translateY(-2px);
+        border-color: var(--primary-color);
+    }
+
+    .kanban-card.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    .kanban-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+
+    .kanban-card-title {
+        font-weight: 600;
+        color: var(--text-color);
+        flex: 1;
+        word-break: break-word;
+    }
+
+    .kanban-card-priority {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+
+    .kanban-card-description {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-bottom: 10px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .kanban-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+    }
+
+    .kanban-card-category {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .kanban-card-due {
+        color: var(--text-muted);
+    }
+
+    .kanban-card-due.overdue {
+        color: var(--danger-color);
+        font-weight: 600;
+    }
+
+    .add-card-btn {
+        width: 100%;
+        padding: 12px;
+        border: 2px dashed var(--border-color);
+        background: transparent;
+        border-radius: 8px;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+
+    .add-card-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        background-color: rgba(99, 102, 241, 0.05);
+    }
+
+    .task-menu {
+        position: relative;
+    }
+
+    .task-menu-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+    }
+
+    .task-menu-btn:hover {
+        background-color: var(--light-bg);
+        color: var(--text-color);
+    }
+
+    @media (max-width: 768px) {
+        .kanban-container {
+            grid-template-columns: 1fr;
+        }
+
+        .kanban-column {
+            min-height: 400px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-layer-group"></i> Kanban Board</h1>
+            <div>
+                <a href="/add" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> New Task
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="kanban-container">
+    <!-- Pending Column -->
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span class="kanban-column-title">
+                <i class="fas fa-circle-notch" style="color: #f59e0b;"></i> To Do
+            </span>
+            <span class="kanban-count">{{ kanban_data.pending|length }}</span>
+        </div>
+        <div class="kanban-cards" id="pending-column">
+            {% for task in kanban_data.pending %}
+                <div class="kanban-card" data-task-id="{{ task.id }}" draggable="true">
+                    <div class="kanban-card-header">
+                        <span class="kanban-card-title">{{ task.name }}</span>
+                        <span class="kanban-card-priority priority-{{ task.priority }}">
+                            {{ task.priority.upper() }}
+                        </span>
+                    </div>
+                    {% if task.description %}
+                        <div class="kanban-card-description">{{ task.description }}</div>
+                    {% endif %}
+                    <div class="kanban-card-footer">
+                        {% if task.category_name %}
+                            <span class="kanban-card-category" style="background-color: {{ task.category_color }}20; color: {{ task.category_color }};">
+                                {{ task.category_name }}
+                            </span>
+                        {% endif %}
+                        {% if task.due_date %}
+                            <span class="kanban-card-due {% if task.due_date < now.strftime('%Y-%m-%d') %}overdue{% endif %}">
+                                {{ task.due_date }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <button class="add-card-btn" onclick="openAddTaskModal('pending')">
+            <i class="fas fa-plus"></i> Add Card
+        </button>
+    </div>
+
+    <!-- In Progress Column -->
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span class="kanban-column-title">
+                <i class="fas fa-spinner" style="color: #3b82f6;"></i> In Progress
+            </span>
+            <span class="kanban-count">{{ kanban_data.in_progress|length }}</span>
+        </div>
+        <div class="kanban-cards" id="in-progress-column">
+            {% for task in kanban_data.in_progress %}
+                <div class="kanban-card" data-task-id="{{ task.id }}" draggable="true">
+                    <div class="kanban-card-header">
+                        <span class="kanban-card-title">{{ task.name }}</span>
+                        <span class="kanban-card-priority priority-{{ task.priority }}">
+                            {{ task.priority.upper() }}
+                        </span>
+                    </div>
+                    {% if task.description %}
+                        <div class="kanban-card-description">{{ task.description }}</div>
+                    {% endif %}
+                    <div class="kanban-card-footer">
+                        {% if task.category_name %}
+                            <span class="kanban-card-category" style="background-color: {{ task.category_color }}20; color: {{ task.category_color }};">
+                                {{ task.category_name }}
+                            </span>
+                        {% endif %}
+                        {% if task.due_date %}
+                            <span class="kanban-card-due {% if task.due_date < now.strftime('%Y-%m-%d') %}overdue{% endif %}">
+                                {{ task.due_date }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <button class="add-card-btn" onclick="openAddTaskModal('in_progress')">
+            <i class="fas fa-plus"></i> Add Card
+        </button>
+    </div>
+
+    <!-- Completed Column -->
+    <div class="kanban-column">
+        <div class="kanban-column-header">
+            <span class="kanban-column-title">
+                <i class="fas fa-check-circle" style="color: #10b981;"></i> Done
+            </span>
+            <span class="kanban-count">{{ kanban_data.completed|length }}</span>
+        </div>
+        <div class="kanban-cards" id="completed-column">
+            {% for task in kanban_data.completed %}
+                <div class="kanban-card" data-task-id="{{ task.id }}" draggable="true" style="opacity: 0.7;">
+                    <div class="kanban-card-header">
+                        <span class="kanban-card-title" style="text-decoration: line-through;">{{ task.name }}</span>
+                        <span class="kanban-card-priority priority-{{ task.priority }}">
+                            {{ task.priority.upper() }}
+                        </span>
+                    </div>
+                    {% if task.description %}
+                        <div class="kanban-card-description">{{ task.description }}</div>
+                    {% endif %}
+                    <div class="kanban-card-footer">
+                        {% if task.category_name %}
+                            <span class="kanban-card-category" style="background-color: {{ task.category_color }}20; color: {{ task.category_color }};">
+                                {{ task.category_name }}
+                            </span>
+                        {% endif %}
+                        {% if task.completed_at %}
+                            <span class="kanban-card-due">
+                                Completed
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let draggedElement = null;
+
+    // Drag and drop functionality
+    document.querySelectorAll('.kanban-card').forEach(card => {
+        card.addEventListener('dragstart', (e) => {
+            draggedElement = card;
+            card.classList.add('dragging');
+        });
+
+        card.addEventListener('dragend', (e) => {
+            card.classList.remove('dragging');
+        });
+    });
+
+    document.querySelectorAll('.kanban-cards').forEach(column => {
+        column.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            column.style.backgroundColor = 'rgba(99, 102, 241, 0.05)';
+        });
+
+        column.addEventListener('dragleave', (e) => {
+            column.style.backgroundColor = '';
+        });
+
+        column.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            column.style.backgroundColor = '';
+
+            if (draggedElement) {
+                const taskId = draggedElement.dataset.taskId;
+                const newStatus = column.id.replace('-column', '');
+
+                try {
+                    await API.put(`/api/task/${taskId}/status`, {
+                        status: newStatus
+                    });
+                    column.appendChild(draggedElement);
+                    showNotification('Task status updated!', 'success');
+                    location.reload();
+                } catch (error) {
+                    showNotification('Failed to update task status', 'error');
+                }
+            }
+        });
+    });
+
+    function openAddTaskModal(status) {
+        // Open the add task form with pre-selected status
+        window.location.href = `/add?status=${status}`;
+    }
+</script>
+{% endblock %}

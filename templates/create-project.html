@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Create New Project - Task Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .create-project-container {
+        max-width: 600px;
+        margin: 50px auto;
+    }
+
+    .create-project-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 40px;
+        box-shadow: var(--shadow);
+    }
+
+    .create-project-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .create-project-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 15px;
+    }
+
+    .create-project-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 10px;
+    }
+
+    .create-project-subtitle {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+    }
+
+    .color-picker {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .color-option {
+        width: 50px;
+        height: 50px;
+        border-radius: 8px;
+        border: 3px solid transparent;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .color-option:hover,
+    .color-option.selected {
+        border-color: var(--text-color);
+        transform: scale(1.1);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 8px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+    }
+
+    .button-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 30px;
+    }
+
+    .button-group button {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-submit {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .btn-submit:hover {
+        background-color: #4f46e5;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .btn-cancel {
+        background-color: var(--light-bg);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-cancel:hover {
+        background-color: var(--border-color);
+    }
+
+    @media (max-width: 600px) {
+        .create-project-container {
+            margin: 20px;
+        }
+
+        .create-project-card {
+            padding: 25px;
+        }
+
+        .color-picker {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        .button-group {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="create-project-container">
+    <div class="create-project-card">
+        <div class="create-project-header">
+            <div class="create-project-icon">
+                <i class="fas fa-folder-plus"></i>
+            </div>
+            <h1 class="create-project-title">Create New Project</h1>
+            <p class="create-project-subtitle">Organize your tasks into projects</p>
+        </div>
+
+        <form method="POST">
+            <div class="form-group">
+                <label class="form-label" for="name">Project Name *</label>
+                <input type="text" class="form-control" id="name" name="name" placeholder="e.g., Website Redesign" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="description">Description</label>
+                <textarea class="form-control form-textarea" id="description" name="description" placeholder="Describe your project..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Project Color</label>
+                <div class="color-picker">
+                    <div class="color-option selected" style="background-color: #6366f1;" onclick="selectColor('#6366f1', this)"></div>
+                    <div class="color-option" style="background-color: #8b5cf6;" onclick="selectColor('#8b5cf6', this)"></div>
+                    <div class="color-option" style="background-color: #ec4899;" onclick="selectColor('#ec4899', this)"></div>
+                    <div class="color-option" style="background-color: #f43f5e;" onclick="selectColor('#f43f5e', this)"></div>
+                    <div class="color-option" style="background-color: #f97316;" onclick="selectColor('#f97316', this)"></div>
+                    <div class="color-option" style="background-color: #eab308;" onclick="selectColor('#eab308', this)"></div>
+                    <div class="color-option" style="background-color: #10b981;" onclick="selectColor('#10b981', this)"></div>
+                    <div class="color-option" style="background-color: #0ea5e9;" onclick="selectColor('#0ea5e9', this)"></div>
+                </div>
+                <input type="hidden" id="color" name="color" value="#6366f1">
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-check"></i> Create Project
+                </button>
+                <a href="/projects" class="btn-cancel">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function selectColor(color, element) {
+        document.querySelectorAll('.color-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        element.classList.add('selected');
+        document.getElementById('color').value = color;
+    }
+</script>
+{% endblock %}
