@@ -123,6 +123,15 @@ volumeMounts: []
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: "gp3"
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  mountPath: /data
+  dbPath: /data/task_manager.db
+
 nodeSelector: {}
 
 tolerations: []

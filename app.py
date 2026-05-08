@@ -12,7 +12,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'prod-secret-key-change-this-in-production')
 
 # Use a writable location for the database
-DB_PATH = os.path.join(tempfile.gettempdir(), "task_manager.db")
+DB_PATH = os.environ.get("DB_PATH", os.path.join(tempfile.gettempdir(), "task_manager.db"))
+
+# Ensure directory exists when a mounted path is configured
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 def get_db():
     db = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)

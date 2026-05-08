@@ -21,6 +21,14 @@ spec:
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
+          {{- if .Values.persistence.enabled }}
+          env:
+            - name: DB_PATH
+              value: "{{ .Values.persistence.dbPath }}"
+          volumeMounts:
+            - name: persistence
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
         
           livenessProbe:
             httpGet:
@@ -42,6 +50,10 @@ spec:
               cpu: 100m
               memory: 128Mi
 
-
-
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: persistence
+          persistentVolumeClaim:
+            claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{ else }}{{ include "flaskapp.fullname" . }}-pvc{{ end }}
+      {{- end }}
 
