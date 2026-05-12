@@ -9,3 +9,4 @@ spec:
       targetPort: {{ .Values.service.targetPort }}  
   selector:
     app: {{ .Release.Name }}
+    color: {{ .Values.deployment.color }}

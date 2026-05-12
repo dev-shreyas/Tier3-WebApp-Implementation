@@ -16,19 +16,15 @@ on:
           - dev
           - staging
           - prod
-  pull_request:
-    branches:
-      - main
-      - master
-    paths:
-      - ".github/workflows/continous-integration.yml"        
-  push:
-    branches:
-      - main
-      - master
-      - '**'
-    paths:
-      - ".github/workflows/continous-integration.yml"    
+      deployment_strategy:
+        description: "Deployment strategy (blue-green/canary/rolling)"
+        required: true
+        default: "rolling"
+        type: choice
+        options:
+          - blue-green
+          - canary
+          - rolling  
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -128,6 +124,72 @@ jobs:
           kubectl get namespace "${{ env.HELM_NAMESPACE }}" 2>/dev/null || \
             kubectl create namespace "${{ env.HELM_NAMESPACE }}"
 
+      - name: Detect active deployment color
+        id: active-color
+        run: |
+          ACTIVE_COLOR=$(kubectl get svc "${{ env.HELM_RELEASE }}" \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            -o jsonpath='{.spec.selector.color}' 2>/dev/null || echo "blue")
+ 
+          # Fall back to Deployment if not found on Ingress
+          if [ -z "${ACTIVE_COLOR}" ]; then
+            ACTIVE_COLOR="blue" # default to blue if no existing deployment
+          fi
+ 
+          if [ "${ACTIVE_COLOR}" = "blue" ]; then
+            TARGET_COLOR="green"
+          else
+            TARGET_COLOR="blue"
+          fi
+
+          echo "active_color=${ACTIVE_COLOR}" >> $GITHUB_OUTPUT
+          echo "target_color=${TARGET_COLOR}" >> $GITHUB_OUTPUT
+
+          echo "Current active color: ${ACTIVE_COLOR}"
+          echo "Target deployment color: ${TARGET_COLOR}"
+
+      - name: Deploy inactive color using Helm
+        if: github.event.inputs.deployment_strategy == 'blue-green'
+        id: helm_blue-green_deploy  
+        run: |
+          TARGET_COLOR="${{ steps.active-color.outputs.target_color }}"
+          IMAGE_TAG="${{ steps.resolve.outputs.image_tag }}"
+          BUILD_TAG="${{ steps.resolve.outputs.build_tag }}"
+
+          helm upgrade "flaskapp-${TARGET_COLOR}" ./helm-charts/flaskapp \
+            --install \
+            --atomic \
+            --timeout 5m \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            --set deployment.color="${TARGET_COLOR}" \
+            --set image.repository="${IMAGE_TAG%:*}" \
+            --set image.tag="${IMAGE_TAG##*:}" \
+            --set app.version="${BUILD_TAG}" \
+            --wait
+
+      - name: Validate target deployment
+        if: github.event.inputs.deployment_strategy == 'blue-green'
+        run: |
+          TARGET_COLOR="${{ steps.active-color.outputs.target_color }}"
+          kubectl get pods -n "{{ env.HELM_NAMESPACE  }}"
+          
+          kubectl rollout status deployment/"flaskapp-${TARGET_COLOR}" \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            --timeout=5m
+            
+          manual approval: true
+          
+      - name: Switch production traffic to target color
+        if: github.event.inputs.deployment_strategy == 'blue-green'
+        run: |
+          TARGET_COLOR="${{ steps.active-color.outputs.target_color }}"  
+          
+          kubectl patch svc "${{ env.HELM_RELEASE }}" \
+            --namespace "${{ env.HELM_NAMESPACE }}" \
+            -p "{\"spec\":{\"selector\":{\"app\":\"${{ env.HELM_RELEASE }}\",\"color\":\"${TARGET_COLOR}\"}}}"
+
+          echo "Switched production traffic to ${TARGET_COLOR} deployment"  
+
       - name: Helm upgrade --install
         id: helm-deploy
         run: |
@@ -141,8 +203,8 @@ jobs:
             --namespace "${{ env.HELM_NAMESPACE }}" \
             --set image.repository="${IMAGE_TAG%:*}" \
             --set image.tag="${IMAGE_TAG##*:}" \
-            --set app.buildTag="${BUILD_TAG}" \
-            --set app.buildNumber="${{ steps.resolve.outputs.build_num }}" \
+            --set deployment.color="${TARGET_COLOR}" \
+            --set app.version="${BUILD_TAG}" \
             --wait
  
           echo "Helm release status:"
