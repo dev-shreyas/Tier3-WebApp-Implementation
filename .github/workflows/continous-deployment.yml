@@ -171,13 +171,11 @@ jobs:
         if: github.event.inputs.deployment_strategy == 'blue-green'
         run: |
           TARGET_COLOR="${{ steps.active-color.outputs.target_color }}"
-          kubectl get pods -n "{{ env.HELM_NAMESPACE  }}"
+          kubectl get pods -n "${{ env.HELM_NAMESPACE  }}"
           
           kubectl rollout status deployment/"flaskapp-${TARGET_COLOR}" \
             --namespace "${{ env.HELM_NAMESPACE }}" \
             --timeout=5m
-            
-          manual approval: true
           
       - name: Switch production traffic to target color
         if: github.event.inputs.deployment_strategy == 'blue-green'
